@@ -1,0 +1,3337 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lecture Notes - AI Study App</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <style>
+    :root {
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      --bg-app: #f4f6f8;
+      --bg-card: #ffffff;
+      --ink-primary: #1e293b;
+      --ink-secondary: #475569;
+      --ink-muted: #64748b;
+      --border-light: #e2e8f0;
+      --border-dashed: #cbd5e1;
+
+      /* Primary Blue */
+      --blue-primary: #2563eb;
+      --blue-hover: #1d4ed8;
+      --blue-light: #eff6ff;
+      --blue-dark-btn: #296294;
+      --blue-dark-btn-hover: #1e4b72;
+
+      /* Visual Card Accents */
+      --accent-blue-border: #3b82f6;
+      --accent-blue-title: #1d4ed8;
+      --accent-red-border: #f87171;
+      --accent-red-title: #dc2626;
+      --accent-purple-border: #c084fc;
+      --accent-purple-title: #7e22ce;
+      --accent-green-border: #34d399;
+      --accent-green-title: #047857;
+
+      /* Callout Boxes */
+      --amber-bg: #fffbeb;
+      --amber-border: #fde047;
+      --amber-title: #b45309;
+      --amber-text: #92400e;
+
+      --purple-bg: #faf5ff;
+      --purple-border: #e9d5ff;
+      --purple-title: #7e22ce;
+      --purple-text: #6b21a8;
+
+      /* Badges & Chips */
+      --pill-generated-bg: #dcfce7;
+      --pill-generated-text: #15803d;
+
+      --chip-blue-bg: #e0f2fe;
+      --chip-blue-text: #0284c7;
+      --chip-red-bg: #ffe4e6;
+      --chip-red-text: #be123c;
+      --chip-purple-bg: #f3e8ff;
+      --chip-purple-text: #6b21a8;
+      --chip-green-bg: #d1fae5;
+      --chip-green-text: #047857;
+    }
+
+    /* Lightbox Modal */
+    .lightbox-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+      z-index: 9999;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .lightbox-content {
+      background: #ffffff;
+      border-radius: 16px;
+      max-width: 1100px;
+      width: 100%;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }
+
+    .lightbox-header {
+      padding: 16px 24px;
+      border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #f8fafc;
+    }
+
+    .lightbox-title {
+      font-size: 16px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+
+    .lightbox-close {
+      background: #e2e8f0;
+      border: none;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      font-size: 18px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #334155;
+      transition: background 0.2s ease;
+    }
+
+    .lightbox-close:hover {
+      background: #cbd5e1;
+      color: #0f172a;
+    }
+
+    .lightbox-body {
+      padding: 20px;
+      overflow: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0f172a;
+      min-height: 400px;
+    }
+
+    .lightbox-body img,
+    .lightbox-body svg {
+      max-width: 100%;
+      max-height: 75vh;
+      object-fit: contain;
+      border-radius: 8px;
+    }
+
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background-color: var(--bg-app);
+      color: var(--ink-primary);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Layout */
+    .app-container {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      min-height: 100vh;
+      max-width: 1600px;
+      margin: 0 auto;
+      background: var(--bg-app);
+    }
+
+    /* Sidebar */
+    .sidebar {
+      background: #ffffff;
+      border-right: 1px solid var(--border-light);
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .sidebar-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--ink-primary);
+      letter-spacing: -0.3px;
+    }
+
+    .btn-new-upload {
+      width: 100%;
+      background: var(--blue-dark-btn);
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: background 0.2s ease, transform 0.1s ease;
+    }
+
+    .btn-new-upload:hover {
+      background: var(--blue-dark-btn-hover);
+    }
+
+    .btn-new-upload:active {
+      transform: scale(0.99);
+    }
+
+    .drop-zone {
+      border: 2px dashed var(--border-dashed);
+      border-radius: 12px;
+      padding: 24px 16px;
+      text-align: center;
+      background: #f8fafc;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .drop-zone:hover,
+    .drop-zone.dragover {
+      border-color: var(--blue-primary);
+      background: #eff6ff;
+    }
+
+    .drop-icon-wrapper {
+      width: 36px;
+      height: 36px;
+      margin: 0 auto 10px;
+      color: var(--blue-dark-btn);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .drop-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ink-primary);
+      margin-bottom: 4px;
+      word-break: break-word;
+      line-height: 1.3;
+    }
+
+    .drop-caption {
+      font-size: 11px;
+      color: var(--ink-muted);
+      font-weight: 500;
+    }
+
+    .sidebar-divider {
+      border: none;
+      border-top: 1px solid var(--border-light);
+      margin: 4px 0;
+    }
+
+    .ai-features-section {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .ai-features-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--ink-primary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .icon-sparkle {
+      width: 16px;
+      height: 16px;
+      color: #f59e0b;
+      flex-shrink: 0;
+    }
+
+    .ai-checklist {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .ai-checklist li {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--ink-secondary);
+      font-weight: 500;
+    }
+
+    .check-icon {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 1.5px solid #10b981;
+      color: #10b981;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .check-icon svg {
+      width: 11px;
+      height: 11px;
+    }
+
+    /* Main Area */
+    .main-content {
+      padding: 24px;
+      overflow-y: auto;
+    }
+
+    .card-main {
+      background: #ffffff;
+      border: 1px solid var(--border-light);
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+      min-height: calc(100vh - 48px);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card-header {
+      padding: 20px 24px 0 24px;
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    .file-info-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .file-name {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--ink-primary);
+      letter-spacing: -0.2px;
+    }
+
+    .badge-generated {
+      background: var(--pill-generated-bg);
+      color: var(--pill-generated-text);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 9999px;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 28px;
+      margin-bottom: -1px;
+    }
+
+    .tab {
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      padding: 10px 4px 14px 4px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ink-muted);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .tab:hover {
+      color: var(--ink-primary);
+    }
+
+    .tab.active {
+      color: var(--blue-primary);
+      border-bottom-color: var(--blue-primary);
+    }
+
+    /* Status Banner */
+    .status-banner {
+      margin: 16px 24px 0 24px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .status-banner.error {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #991b1b;
+    }
+
+    .status-banner.info {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1e40af;
+    }
+
+    .status-banner.success {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      color: #166534;
+    }
+
+    /* Panels */
+    .tab-panel {
+      display: none;
+      padding: 24px;
+      flex: 1;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    /* Tab 1: Original Notes */
+    .panel-meta-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+
+    .panel-info-text {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--ink-muted);
+      font-weight: 500;
+    }
+
+    .link-download {
+      background: none;
+      border: none;
+      color: var(--blue-primary);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      text-decoration: none;
+      transition: color 0.2s ease, opacity 0.2s ease;
+    }
+
+    .link-download:hover {
+      color: var(--blue-hover);
+      text-decoration: underline;
+    }
+
+    .link-download.disabled,
+    .link-download:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      pointer-events: none;
+      text-decoration: none;
+    }
+
+    .meta-icon {
+      width: 16px;
+      height: 16px;
+    }
+
+    .raw-text-editor {
+      width: 100%;
+      min-height: 480px;
+      border: 1px solid var(--border-light);
+      border-radius: 10px;
+      padding: 20px;
+      background: #ffffff;
+      font-size: 13px;
+      line-height: 1.7;
+      color: #334155;
+      font-family: var(--font-sans);
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .raw-text-editor:focus {
+      border-color: var(--blue-primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+
+    .btn-generate-text {
+      background: var(--blue-dark-btn);
+      color: #ffffff;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.2s ease;
+      font-family: inherit;
+    }
+
+    .btn-generate-text:hover {
+      background: var(--blue-dark-btn-hover);
+    }
+
+    /* Tab 2: Visual Notes */
+    .visual-meta-bar {
+      align-items: flex-start;
+    }
+
+    .eyebrow-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      color: #64748b;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+    }
+
+    .visual-topic-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--ink-primary);
+      letter-spacing: -0.2px;
+    }
+
+    /* Tab 3: Edit Split View */
+    .edit-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 350px;
+      gap: 24px;
+      align-items: start;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    @media (max-width: 1180px) {
+      .edit-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .ai-prompt-panel {
+        position: static !important;
+      }
+    }
+
+    .edit-preview-wrapper {
+      min-width: 0;
+      width: 100%;
+      opacity: 0.95;
+    }
+
+    .edit-preview-wrapper .vnotes-dashboard-container {
+      margin-top: 8px;
+    }
+
+    .edit-preview-wrapper .vnotes-row-top {
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+
+    .edit-preview-wrapper .vnotes-row-pathway {
+      width: 100%;
+    }
+
+    .edit-preview-wrapper .vnotes-row-structures-nursing {
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+
+    .edit-preview-wrapper .vnotes-row-bottom {
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+
+    .ai-prompt-panel {
+      background: #ffffff;
+      border: 1px solid var(--border-light);
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+      position: sticky;
+      top: 24px;
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+    }
+
+    .prompt-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .icon-bolt {
+      font-size: 16px;
+      color: #f59e0b;
+    }
+
+    .prompt-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--ink-primary);
+    }
+
+    .prompt-helper {
+      font-size: 12px;
+      color: var(--ink-muted);
+      line-height: 1.4;
+    }
+
+    .examples-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .examples-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+      color: var(--ink-muted);
+      text-transform: uppercase;
+    }
+
+    .chip-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .chip-btn {
+      background: #ffffff;
+      border: 1px solid var(--border-light);
+      border-radius: 8px;
+      padding: 9px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--ink-primary);
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      font-family: inherit;
+      line-height: 1.35;
+    }
+
+    .chip-btn:hover {
+      border-color: var(--blue-primary);
+      background: #f8fafc;
+      color: var(--blue-primary);
+    }
+
+    /* Chat Log */
+    .chat-log {
+      max-height: 220px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding-right: 4px;
+      margin-top: 2px;
+    }
+
+    .chat-log::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .chat-log::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+
+    .msg-user-wrapper {
+      align-self: flex-end;
+      max-width: 90%;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+    }
+
+    .msg-user-bubble {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1e3a8a;
+      border-radius: 12px 12px 2px 12px;
+      padding: 8px 12px;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .msg-ai-wrapper {
+      align-self: flex-start;
+      max-width: 95%;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+    }
+
+    .msg-ai-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--ink-muted);
+      font-weight: 500;
+      padding: 4px 0;
+    }
+
+    .msg-ai-bubble {
+      background: #ffffff;
+      border: 1px solid var(--border-light);
+      color: var(--ink-primary);
+      border-radius: 12px 12px 12px 2px;
+      padding: 8px 12px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 500;
+      line-height: 1.4;
+    }
+
+    .dot-green {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #10b981;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+
+    .msg-meta {
+      font-size: 10px;
+      color: #94a3b8;
+    }
+
+    .spinner-icon {
+      width: 14px;
+      height: 14px;
+      border: 2px solid #cbd5e1;
+      border-top-color: var(--blue-primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* Prompt Input Form */
+    .prompt-input-form {
+      display: flex;
+      align-items: center;
+      border: 1px solid var(--border-light);
+      border-radius: 10px;
+      padding: 4px 6px 4px 12px;
+      background: #ffffff;
+      transition: border-color 0.2s ease;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .prompt-input-form:focus-within {
+      border-color: var(--blue-primary);
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+    }
+
+    .prompt-input {
+      flex: 1;
+      border: none;
+      outline: none;
+      font-size: 12px;
+      color: var(--ink-primary);
+      font-family: inherit;
+      min-width: 0;
+    }
+
+    .prompt-input::placeholder {
+      color: #94a3b8;
+    }
+
+    .btn-send-prompt {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--blue-dark-btn);
+      color: #ffffff;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s ease;
+      flex-shrink: 0;
+    }
+
+    .btn-send-prompt:hover {
+      background: var(--blue-dark-btn-hover);
+    }
+
+    /* Floating Status Notification Toast */
+    #app-status-toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      z-index: 99999;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+      display: none;
+      align-items: center;
+      gap: 10px;
+      max-width: 440px;
+      line-height: 1.4;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      font-family: inherit;
+    }
+
+    .drop-zone.processing {
+      border-color: #3b82f6 !important;
+      background: #eff6ff !important;
+    }
+
+    .drop-spinner {
+      width: 24px;
+      height: 24px;
+      border: 3px solid #bfdbfe;
+      border-top-color: #2563eb;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 8px auto;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app-container">
+    <!-- Left Sidebar -->
+    <aside class="sidebar">
+      <h1 class="sidebar-title">Lecture Notes</h1>
+
+      <button class="btn-new-upload" id="btn-upload-trigger">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+          stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        New Upload
+      </button>
+
+      <input type="file" id="file-input"
+        accept=".pdf,.docx,.pptx,.png,.jpg,.jpeg,.bmp,.webp,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,image/*,text/plain"
+        style="display: none;">
+
+      <div class="drop-zone" id="drop-zone" style="cursor: pointer; display: block;">
+        <div class="drop-icon-wrapper" style="pointer-events: none;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+        </div>
+        <p class="drop-title" id="drop-zone-title" style="pointer-events: none;">Drop files or click to browse</p>
+        <p class="drop-caption" style="pointer-events: none;">PDF · DOCX · PPTX · Images</p>
+      </div>
+
+      <hr class="sidebar-divider">
+
+      <div class="ai-features-section">
+        <h3 class="ai-features-title">
+          <svg class="icon-sparkle" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z" />
+          </svg>
+          Study Smarter with AI
+        </h3>
+        <ul class="ai-checklist">
+          <li>
+            <span class="check-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"
+                stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </span>
+            Color-coded visual notes
+          </li>
+          <li>
+            <span class="check-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"
+                stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </span>
+            Add diagrams & system views
+          </li>
+          <li>
+            <span class="check-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"
+                stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </span>
+            Organize for better retention
+          </li>
+          <li>
+            <span class="check-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"
+                stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </span>
+            Download & study anywhere
+          </li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <div class="card-main">
+        <!-- Header & Tabs -->
+        <div class="card-header">
+          <div class="file-info-row" id="file-info-row" style="display: none;">
+            <h2 class="file-name" id="doc-filename">Uploaded Notes</h2>
+            <span class="badge-generated">Generated</span>
+          </div>
+          <div class="tabs" role="tablist">
+            <button class="tab active" data-tab="original" role="tab">Original Notes</button>
+            <button class="tab" data-tab="visual" role="tab">Visual Notes</button>
+            <button class="tab" data-tab="edit" role="tab">Edit</button>
+          </div>
+        </div>
+
+        <!-- Status / Error Banner -->
+        <div id="status-banner" class="status-banner" style="display: none;"></div>
+
+        <!-- TAB 1: Original Notes -->
+        <div class="tab-panel active" id="panel-original">
+          <div class="panel-meta-bar">
+            <span class="panel-info-text">
+              <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+              </svg>
+              Original Uploaded Study Notes
+            </span>
+            <div style="display: flex; gap: 12px; align-items: center;">
+              <button id="btn-toggle-raw-edit"
+                style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:6px; padding:6px 12px; font-size:12px; font-weight:600; color:#334155; cursor:pointer;">
+                ✏️ Edit Raw Text
+              </button>
+              <button class="btn-generate-text" id="btn-generate-text">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z" />
+                </svg>
+                Generate Visual Notes
+              </button>
+              <button class="link-download" id="btn-download-original">
+                <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                Download Original
+              </button>
+            </div>
+          </div>
+          <div id="original-text-formatted-view" class="formatted-study-notes-container" style="display:none;"></div>
+          <textarea class="raw-text-editor" id="original-text-content"
+            placeholder="Type, paste, or edit your lecture notes here..."></textarea>
+        </div>
+
+        <!-- TAB 2: Visual Notes -->
+        <div class="tab-panel" id="panel-visual">
+          <div class="panel-meta-bar visual-meta-bar">
+            <div>
+              <div class="eyebrow-label">VISUAL STUDY NOTES</div>
+              <h2 class="visual-topic-title" id="visual-topic-title">Visual Study Notes</h2>
+            </div>
+            <button class="link-download" id="btn-download-visual">
+              <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              Download Visual
+            </button>
+          </div>
+
+          <div id="visual-notes-container"></div>
+        </div>
+
+        <!-- TAB 3: Edit -->
+        <div class="tab-panel" id="panel-edit">
+          <div class="edit-layout">
+            <div class="edit-preview-wrapper">
+              <div id="edit-preview-container"></div>
+            </div>
+
+            <!-- AI Prompt Panel -->
+            <div class="ai-prompt-panel">
+              <div class="prompt-header">
+                <span class="icon-bolt">⚡</span>
+                <h3 class="prompt-title">AI Prompt</h3>
+              </div>
+              <p class="prompt-helper">Ask AI to modify your visual notes. Be specific about what you want to change.
+              </p>
+
+              <div class="examples-section">
+                <span class="examples-label">TRY THESE EXAMPLES:</span>
+                <div class="chip-list">
+                  <button class="chip-btn" data-prompt="Make it more concise">Make it more concise</button>
+                  <button class="chip-btn" data-prompt="Highlight key terms in red">Highlight key terms in red</button>
+                  <button class="chip-btn" data-prompt="Simplify for first year students">Simplify for first year
+                    students</button>
+                  <button class="chip-btn" data-prompt="Change the color theme to pastel">Change the color theme to
+                    pastel</button>
+                </div>
+              </div>
+
+              <div class="chat-log" id="chat-log">
+                <div class="msg-ai-wrapper">
+                  <div class="msg-ai-bubble">
+                    <span class="dot-green"></span>
+                    Ready! Choose a suggestion above or type below to modify your notes with AI.
+                  </div>
+                  <span class="msg-meta">AI • Ready</span>
+                </div>
+              </div>
+
+              <form class="prompt-input-form" id="prompt-form">
+                <input type="text" id="prompt-input" class="prompt-input" placeholder="Describe the changes you want..."
+                  autocomplete="off">
+                <button type="submit" class="btn-send-prompt" aria-label="Send Prompt">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                  </svg>
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // --- Security Helper ---
+
+    // --- Floating Status Toast Notification ---
+    function showStatus(message, type = 'info') {
+      console.log(`[Status ${type}]:`, message);
+      let toast = document.getElementById('app-status-toast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'app-status-toast';
+        document.body.appendChild(toast);
+      }
+
+      toast.style.display = 'flex';
+      toast.style.opacity = '1';
+      toast.style.transform = 'translateY(0)';
+
+      if (type === 'error') {
+        toast.style.background = '#fef2f2';
+        toast.style.color = '#991b1b';
+        toast.style.border = '1.5px solid #fca5a5';
+        toast.innerHTML = `<span style="font-size:16px;">⚠️</span> <span>${message}</span>`;
+      } else if (type === 'success') {
+        toast.style.background = '#f0fdf4';
+        toast.style.color = '#166534';
+        toast.style.border = '1.5px solid #86efac';
+        toast.innerHTML = `<span style="font-size:16px;">✅</span> <span>${message}</span>`;
+      } else {
+        toast.style.background = '#eff6ff';
+        toast.style.color = '#1e40af';
+        toast.style.border = '1.5px solid #93c5fd';
+        toast.innerHTML = `<span style="font-size:16px;">ℹ️</span> <span>${message}</span>`;
+      }
+
+      clearTimeout(toast._timeout);
+      toast._timeout = setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(12px)';
+        setTimeout(() => { toast.style.display = 'none'; }, 250);
+      }, 5000);
+    }
+
+
+    function esc(str) {
+      if (str === null || str === undefined) return '';
+      const cleanStr = String(str).replace(/\*\*/g, '').replace(/\*/g, '').trim();
+      return cleanStr
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function renderRichHTML(str) {
+      if (str === null || str === undefined) return '';
+      let s = String(str);
+      s = s.replace(/\*\*(.*?)\*\*/g, '<span style="color:#dc2626; font-weight:bold;">$1</span>');
+      s = s.replace(/\*(.*?)\*/g, '<span style="color:#dc2626; font-weight:bold;">$1</span>');
+      if (/<span[^>]*>/i.test(s) || /<b[^>]*>/i.test(s) || /<font[^>]*>/i.test(s)) {
+        s = s.replace(/<span style=['"]color:\s*red;?['"]>/gi, '<span style="color:#dc2626; font-weight:bold;">');
+        s = s.replace(/<span style=['"]color:\s*blue;?['"]>/gi, '<span style="color:#2563eb; font-weight:bold;">');
+        return s;
+      }
+      return esc(s);
+    }
+
+    // --- State Management ---
+    let currentPlan = {
+      id: "doc_dynamic_1",
+      filename: "",
+      topic: "Visual Study Notes",
+      original_text: "",
+      cards: []
+    };
+
+    // --- Tab Switching ---
+    document.querySelectorAll('.tab').forEach(tabBtn => {
+      tabBtn.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+
+        tabBtn.classList.add('active');
+        const tabName = tabBtn.dataset.tab;
+        const panel = document.getElementById('panel-' + tabName);
+        if (panel) panel.classList.add('active');
+      });
+    });
+
+    function cleanAndJoinLinesClient(rawLines) {
+      if (!rawLines || !Array.isArray(rawLines)) return [];
+      const isolatedGlyphs = new Set(['i', 'g', 'n', 'l', 'o', 'q', 'v', '•', '●', '■', '▪', '◆', '➢', '✓', '✔', '►', '○', '—', '–', '-', '*', '']);
+
+      const normalizedItems = [];
+      let pendingBullet = false;
+
+      rawLines.forEach(l => {
+        if (!l) return;
+        let s = l.trim();
+        if (!s || s.startsWith('--- Page') || s.startsWith('--- Slide')) return;
+
+        // Strip control characters & private use area unicode
+        s = s.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\uf000-\uf8ff]/g, '').trim();
+        if (!s) return;
+
+        if (isolatedGlyphs.has(s.toLowerCase()) || (s.length === 1 && !/[a-zA-Z0-9]/.test(s))) {
+          pendingBullet = true;
+          return;
+        }
+
+        const hasLeadingBullet = /^[•\-\*\→●▪■◆➢►○✔✓]/.test(s) || /^[IGnl]\s+(?=[A-Za-z0-9])/.test(s);
+        s = s.replace(/^[•\-\*\→●▪■◆➢►○✔✓]\s*/, '').replace(/^[IGnl]\s+(?=[A-Za-z0-9])/, '').trim();
+        if (!s) return;
+
+        const isBullet = pendingBullet || hasLeadingBullet;
+        pendingBullet = false;
+        normalizedItems.push({ text: s, isBullet: isBullet });
+      });
+
+      const joined = [];
+      normalizedItems.forEach(item => {
+        const text = item.text;
+        const isBullet = item.isBullet;
+        const isNumbered = /^(?:[0-9]+[\.\)]|#{1,6}\s+|[IVXLCDM]+[\.\)])\s+[A-Za-z]/.test(text);
+        const isArrow = text.includes('→') || text.includes('->');
+        const isSubhead = /^[A-Za-z0-9\s&/()\-–]+:\s*$/.test(text);
+
+        if (joined.length && !isBullet && !isNumbered && !isArrow && !isSubhead) {
+          const prev = joined[joined.length - 1];
+          const prevIsNumbered = /^(?:[0-9]+[\.\)]|#{1,6}\s+|[IVXLCDM]+[\.\)])\s+[A-Za-z]/.test(prev);
+          const prevIsSubhead = prev.endsWith(':');
+
+          if (!prevIsNumbered && !prevIsSubhead) {
+            if (!/[.?!]$/.test(prev) || /^[a-z]/.test(text)) {
+              joined[joined.length - 1] = prev + " " + text;
+              return;
+            }
+          }
+        }
+        joined.push(text);
+      });
+      return joined;
+    }
+
+    function sanitizeAndGroupSectionsClient(sections) {
+      if (!sections || !Array.isArray(sections)) return sections || [];
+      return sections.filter(sec => sec && typeof sec === 'object');
+    }
+
+    // --- Helper to parse text into dynamic sections on client ---
+    function parseDocumentSectionsClient(text, topicName = "") {
+      if (!text || !text.trim()) return [];
+      const rawLines = text.split('\n').map(l => l.trim()).filter(Boolean);
+      const lines = cleanAndJoinLinesClient(rawLines);
+      if (!lines.length) return [];
+
+      function isMajorHeading(line) {
+        const stripped = line.trim();
+        if (!stripped) return false;
+
+        // 1. Numbered/Lettered/Markdown section headings: "1. ...", "1) ...", "I. ...", "A. ...", "## ..."
+        if (/^(?:[0-9]+[\.\)]|#{1,6}\s+|[IVXLCDM]+[\.\)]|[A-Z][\.\)])\s+[A-Za-z]/.test(stripped)) {
+          return true;
+        }
+
+        const clean = stripped.replace(/^(?:[0-9]+[\.\)]|#{1,6}\s+|[IVXLCDM]+[\.\)])\s*/, '').replace(/:$/, '').trim();
+        const cleanLower = clean.toLowerCase();
+
+        // Subheadings with colons, flowcharts with arrows, or bullet sentences are NEVER major headings
+        if (stripped.endsWith(':') || stripped.includes('→') || stripped.includes('->') || clean.length > 50) {
+          return false;
+        }
+        if (/^[•\-\*\✓\✔\▪\●\■\◆\➢\►\○]/.test(stripped)) {
+          return false;
+        }
+
+        // 2. Standalone uppercase title (e.g. "CLINICAL MANIFESTATIONS", "DIAGNOSTIC WORKUP")
+        if (clean === clean.toUpperCase() && clean.split(/\s+/).length >= 1 && clean.split(/\s+/).length <= 6 && !/[.,;!]/.test(clean)) {
+          return true;
+        }
+
+        return false;
+      }
+
+      const rawSections = [];
+      let currentSec = null;
+
+      lines.forEach((line, idx) => {
+        if (idx === 0 && !/^\d+[\.\)]/.test(line) && (/study notes/i.test(line) || /lecture notes/i.test(line))) {
+          return;
+        }
+
+        if (isMajorHeading(line)) {
+          if (currentSec && (currentSec.heading || currentSec.lines.length || currentSec.items.length || currentSec.flows.length)) {
+            rawSections.push(currentSec);
+          }
+          const cleanTitle = line.replace(/^(?:[0-9]+[\.\)]|#{1,6}\s+|[IVXLCDM]+[\.\)])\s*/, '').replace(/:$/, '').trim();
+          currentSec = {
+            heading: cleanTitle,
+            lines: [],
+            currentSublabel: "",
+            items: [],
+            bullets: [],
+            flows: []
+          };
+        } else {
+          if (!currentSec) {
+            currentSec = {
+              heading: `${topicName || 'Document'} Overview`,
+              lines: [],
+              currentSublabel: "",
+              items: [],
+              bullets: [],
+              flows: []
+            };
+          }
+
+          currentSec.lines.push(line);
+
+          if (line.includes('→') || line.includes('->')) {
+            const pathwayLabel = currentSec.currentSublabel || `${currentSec.heading} Pathway`;
+            const stepsRaw = line.split(/→|->/).map(s => s.trim()).filter(Boolean);
+            if (stepsRaw.length >= 2) {
+              const flowSteps = stepsRaw.map(st => {
+                const stClean = st.replace(/^[•\-\*\d\.\)\→●▪■◆➢✓✔]\s*/, '').trim();
+                const parts = stClean.split(/:|\s+[–—\-]\s+|[–—]/);
+                if (parts.length >= 2 && parts[0].trim().length < 30 && parts[1].trim().length > 1) {
+                  return { name: parts[0].trim().toUpperCase(), subtext: parts[1].trim() };
+                }
+                return { name: stClean.toUpperCase(), subtext: stClean };
+              });
+              const cleanFlowLabel = pathwayLabel.replace(/\bpathway\b/gi, '').trim() + " PATHWAY";
+              currentSec.flows.push({
+                label: cleanFlowLabel.toUpperCase(),
+                steps: flowSteps
+              });
+              currentSec.bullets.push(line);
+              return;
+            }
+          }
+
+          if (line.endsWith(':') && line.length < 50) {
+            currentSec.currentSublabel = line.replace(/:$/, '').trim();
+            return;
+          }
+
+          const lbl = currentSec.currentSublabel;
+          const parts = line.split(/:|\s+[–—\-]\s+|[–—]/);
+
+          if (parts.length >= 2 && parts[0].trim().length < 40 && parts[1].trim().length >= 1 && !parts[1].trim().startsWith('http')) {
+            const itemLabel = parts[0].trim();
+            const itemText = parts.slice(1).join(' - ').trim();
+            currentSec.items.push({ label: itemLabel, text: itemText, tag: itemLabel });
+            currentSec.bullets.push(`${itemLabel}: ${itemText}`);
+          } else {
+            const badgeLbl = lbl || currentSec.heading;
+            currentSec.items.push({ label: badgeLbl, text: line, tag: badgeLbl });
+            currentSec.bullets.push(line);
+          }
+        }
+      });
+
+      if (currentSec && (currentSec.heading || currentSec.lines.length || currentSec.items.length || currentSec.flows.length)) {
+        rawSections.push(currentSec);
+      }
+
+      const accents = ['blue', 'red', 'purple', 'green', 'amber'];
+      return rawSections.map((rsec, idx) => {
+        const heading = rsec.heading || `Section ${idx + 1}`;
+        const secLines = rsec.lines;
+        const bullets = rsec.bullets.length ? rsec.bullets : secLines;
+        const items = rsec.items.length ? rsec.items : bullets.map(b => ({ label: heading, text: b, tag: heading }));
+        const flows = rsec.flows || [];
+
+        const headingLower = heading.toLowerCase();
+        const isPatho = ['patho', 'pathway', 'flow', 'circulation', 'process', 'mechanism'].some(k => headingLower.includes(k));
+        const secType = (isPatho && flows.length) || flows.length > 0 ? 'flowchart' : 'tagged_items';
+
+        return {
+          id: `section_${idx + 1}`,
+          title: /^\d+\./.test(heading) ? heading.toUpperCase() : `${idx + 1}. ${heading.toUpperCase()}`,
+          heading: heading.toUpperCase(),
+          type: secType,
+          section_type: secType,
+          content: secLines.join('\n'),
+          bullets: bullets,
+          items: items,
+          flows: flows,
+          accent: accents[idx % accents.length]
+        };
+      });
+    }
+
+    // --- Avatar & Diagram Helper Utilities ---
+    function getNurseAvatarHTML() {
+      return '<div class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 font-bold text-lg flex-shrink-0">👩‍⚕️</div>';
+    }
+
+    function getBrainAvatarHTML() {
+      return '<div class="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-lg flex-shrink-0">🧠</div>';
+    }
+
+    function getAnatomy3DCrossSectionHTML(organType, url) {
+      if (url) return `<img src="${esc(url)}" alt="Cross Section" class="max-h-36 object-contain rounded-lg" />`;
+      return '<div class="text-xs text-slate-400 italic p-2 text-center">Anatomical Cross Section</div>';
+    }
+
+    function getVessels3DCutawayHTML(url) {
+      if (url) return `<img src="${esc(url)}" alt="Vessels Cutaway" class="max-h-36 object-contain rounded-lg" />`;
+      return '<div class="text-xs text-slate-400 italic p-2 text-center">Vascular Pathway</div>';
+    }
+
+    function getOrgan3DAssetHTML(organType, url) {
+      if (url) return `<img src="${esc(url)}" alt="Organ Asset" class="max-h-36 object-contain rounded-lg" />`;
+      return '<div class="text-xs text-slate-400 italic p-2 text-center">Organ Asset</div>';
+    }
+
+    // --- Render Formatted Original Study Sheet HTML (1:1 synced with cards) ---
+    function renderFormattedOriginalTextHTML(text, sections = null) {
+      if ((!text || !text.trim()) && (!sections || !sections.length)) {
+        return '<div class="text-slate-400 italic p-6 text-center">No study notes uploaded yet. Upload a document or type raw notes to generate.</div>';
+      }
+
+      if (!sections || !sections.length) {
+        sections = parseDocumentSectionsClient(text);
+      }
+
+      let html = '<div class="study-sheet-paper-container bg-white border border-slate-200 rounded-xl p-6 shadow-sm font-sans text-slate-800 leading-relaxed space-y-5">';
+
+      const sectionList = sections;
+      if (sectionList && sectionList.length) {
+        sectionList.forEach((sec, idx) => {
+          const rawTitle = sec.title || sec.heading || `Section ${idx + 1}`;
+          const cleanTitle = rawTitle.replace(/^\d+[\.\)]\s*/, '');
+          const numberedTitle = `${idx + 1}. ${cleanTitle.toUpperCase()}`;
+
+          html += `<div class="doc-section-block border-b border-slate-100 pb-4 last:border-b-0">`;
+          html += `<h3 class="doc-section-header text-base font-extrabold text-blue-900 mb-2 flex items-center gap-2"><span class="text-blue-500 font-bold">#</span>${esc(numberedTitle)}</h3>`;
+
+          let allPointsToRender = [];
+          if (sec.items && sec.items.length) {
+            sec.items.forEach(it => {
+              allPointsToRender.push({ label: it.label || it.tag || "", text: it.text || it.desc || "" });
+            });
+          } else if (sec.bullets && sec.bullets.length) {
+            sec.bullets.forEach(b => {
+              allPointsToRender.push({ label: "", text: b });
+            });
+          }
+
+          if (allPointsToRender.length) {
+            const subGroups = [];
+            let activeGroup = null;
+
+            allPointsToRender.forEach(pt => {
+              const lbl = pt.label ? pt.label.trim() : '';
+              const val = pt.text ? pt.text.trim() : '';
+
+              if (lbl && !val) {
+                activeGroup = { subTitle: lbl, items: [] };
+                subGroups.push(activeGroup);
+              } else if (lbl && val) {
+                if (!activeGroup || activeGroup.subTitle.toLowerCase() !== lbl.toLowerCase()) {
+                  let matchGroup = subGroups.find(g => g.subTitle && g.subTitle.toLowerCase() === lbl.toLowerCase());
+                  if (!matchGroup) {
+                    matchGroup = { subTitle: lbl, items: [] };
+                    subGroups.push(matchGroup);
+                  }
+                  activeGroup = matchGroup;
+                }
+                activeGroup.items.push(val);
+              } else if (val) {
+                if (!activeGroup) {
+                  activeGroup = { subTitle: "", items: [] };
+                  subGroups.push(activeGroup);
+                }
+                activeGroup.items.push(val);
+              }
+            });
+
+            const validGroups = subGroups.filter(g => g.subTitle || g.items.length);
+
+            validGroups.forEach(grp => {
+              if (grp.subTitle) {
+                html += `<div class="doc-subsection-header text-xs font-bold text-slate-900 bg-slate-100/90 border border-slate-200 px-3 py-1 rounded-md inline-block mt-3 mb-1.5 uppercase tracking-wide"><span class="text-blue-600 font-black mr-1.5">▪</span>${esc(grp.subTitle)}</div>`;
+              }
+              if (grp.items.length) {
+                html += '<ul class="doc-bullet-list my-1.5 space-y-1.5 list-none pl-1">';
+                grp.items.forEach(itemText => {
+                  html += `<li class="doc-bullet-item text-sm text-slate-800 flex items-start gap-2 py-0.5"><span class="text-blue-600 font-bold text-base leading-none select-none">•</span><div class="flex-1">${renderRichHTML(itemText)}</div></li>`;
+                });
+                html += '</ul>';
+              }
+            });
+          } else if (sec.content) {
+            const paragraphs = sec.content.split('\n').filter(Boolean);
+            paragraphs.forEach(p => {
+              html += `<p class="doc-paragraph-text text-sm text-slate-700 mb-2">${renderRichHTML(p)}</p>`;
+            });
+          }
+
+          if (sec.callouts && sec.callouts.length) {
+            sec.callouts.forEach(callout => {
+              html += `<div class="bg-amber-50 border border-amber-200/90 rounded-lg p-3 mt-3 text-amber-900 text-xs font-semibold flex items-center gap-2 shadow-2xs">`;
+              html += `  <span class="bg-amber-500 text-white text-[10px] px-2 py-0.5 rounded font-black uppercase tracking-wider">${esc(callout.title)}</span>`;
+              html += `  <span>${renderRichHTML(callout.text)}</span>`;
+              html += `</div>`;
+            });
+          }
+
+          html += `</div>`;
+        });
+      }
+
+      html += '</div>';
+      return html;
+    }
+
+    // Toggle Raw Textarea vs Formatted Study Document View & Tab Navigation
+    document.addEventListener('DOMContentLoaded', () => {
+      // Tab Navigation Event Listener
+      const tabButtons = document.querySelectorAll('.tab');
+      const tabPanels = document.querySelectorAll('.tab-panel');
+
+      tabButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const targetTab = btn.dataset.tab;
+          tabButtons.forEach(t => t.classList.remove('active'));
+          tabPanels.forEach(p => {
+            p.classList.remove('active');
+            p.style.display = 'none';
+          });
+          btn.classList.add('active');
+          const targetPanel = document.getElementById(`panel-${targetTab}`);
+          if (targetPanel) {
+            targetPanel.classList.add('active');
+            targetPanel.style.display = 'block';
+          }
+        });
+      });
+
+      const toggleEditBtn = document.getElementById('btn-toggle-raw-edit');
+      const rawTextareaElem = document.getElementById('original-text-content');
+      const formattedViewElem = document.getElementById('original-text-formatted-view');
+
+      if (toggleEditBtn && rawTextareaElem && formattedViewElem) {
+        toggleEditBtn.addEventListener('click', () => {
+          if (rawTextareaElem.style.display === 'none') {
+            rawTextareaElem.style.display = 'block';
+            formattedViewElem.style.display = 'none';
+            toggleEditBtn.textContent = '👁️ View Formatted Note';
+          } else {
+            rawTextareaElem.style.display = 'none';
+            formattedViewElem.style.display = 'block';
+            const sectionsToUse = typeof currentPlan !== 'undefined' && currentPlan ? (currentPlan.sections || currentPlan.cards) : null;
+            formattedViewElem.innerHTML = renderFormattedOriginalTextHTML(rawTextareaElem.value || "", sectionsToUse);
+            toggleEditBtn.textContent = '✏️ Edit Raw Text';
+          }
+        });
+      }
+
+      if (rawTextareaElem) {
+        rawTextareaElem.addEventListener('input', () => {
+          if (formattedViewElem) {
+            const sectionsToUse = typeof currentPlan !== 'undefined' && currentPlan ? (currentPlan.sections || currentPlan.cards) : null;
+            formattedViewElem.innerHTML = renderFormattedOriginalTextHTML(rawTextareaElem.value || "", sectionsToUse);
+          }
+        });
+      }
+
+      initFileUploadAndDragDrop();
+    });
+
+    // --- PDF Client Text Extraction Helper ---
+    async function extractPdfTextClient(arrayBuffer) {
+      const pdfjs = window.pdfjsLib || window['pdfjs-dist/build/pdf'];
+      if (!pdfjs) return '';
+      try {
+        if (pdfjs.GlobalWorkerOptions) {
+          pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+        const loadingTask = pdfjs.getDocument({
+          data: arrayBuffer,
+          cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+          cMapPacked: true
+        });
+        const pdf = await loadingTask.promise;
+        let fullText = '';
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const textContent = await page.getTextContent();
+          const pageText = textContent.items.map(item => item.str).join(' ');
+          if (pageText.trim()) {
+            fullText += `--- Page ${i} ---\n${pageText.trim()}\n\n`;
+          }
+        }
+        return fullText.trim();
+      } catch (err) {
+        console.warn('PDF.js client extraction error:', err);
+        return '';
+      }
+    }
+
+    // --- API Helper & Lightbox Utilities ---
+    async function apiFetch(endpoint, options = {}) {
+      if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
+        return await fetch(endpoint, options);
+      }
+      const candidatePorts = [8000, 8080, 8001];
+      let lastErr = null;
+      for (const port of candidatePorts) {
+        try {
+          const res = await fetch(`http://127.0.0.1:${port}${endpoint}`, options);
+          return res;
+        } catch (err) {
+          lastErr = err;
+        }
+      }
+      throw lastErr || new Error('Could not connect to backend API');
+    }
+
+    async function regenerateDiagramImage(topic) {
+      showStatus('Regenerating realistic AI diagram...', 'info');
+      try {
+        const response = await apiFetch('/api/v1/generate-diagram-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            topic: topic,
+            text: currentPlan ? (currentPlan.original_text || "") : ""
+          })
+        });
+        if (response.ok) {
+          const newVis = await response.json();
+          if (currentPlan) currentPlan.main_visual = newVis;
+          render(currentPlan);
+          showStatus('Generated fresh realistic diagram image!', 'success');
+          return;
+        }
+      } catch (e) {
+        console.warn('Backend diagram API error:', e);
+      }
+    }
+
+    function selectPin(btn, name, desc) {
+      document.querySelectorAll('.pin-card-item').forEach(b => {
+        b.style.background = '#f8fafc';
+        b.style.borderColor = '#e2e8f0';
+      });
+      btn.style.background = '#eff6ff';
+      btn.style.borderColor = '#3b82f6';
+      showStatus(`Selected Pin: ${name} — ${desc || ''}`, 'info');
+    }
+
+    function openDiagramLightbox(imgSrc, title) {
+      const modal = document.getElementById('diagram-lightbox-modal');
+      const titleElem = document.getElementById('lightbox-title');
+      const bodyElem = document.getElementById('lightbox-body');
+      if (!modal) return;
+      if (titleElem) titleElem.textContent = title || "Realistic Anatomical Diagram";
+      if (bodyElem && imgSrc) {
+        bodyElem.innerHTML = `<img id="lightbox-img" src="${esc(imgSrc)}" alt="${esc(title)}" style="max-width:100%; max-height:80vh; object-fit:contain;" />`;
+      }
+      modal.style.display = 'flex';
+    }
+
+    function closeDiagramLightbox() {
+      const modal = document.getElementById('diagram-lightbox-modal');
+      if (modal) modal.style.display = 'none';
+    }
+
+    // Helper for API fetches
+    async function apiFetch(url, options = {}) {
+      return fetch(url, options);
+    }
+
+    // --- File Upload & Drag-and-Drop Handlers ---
+    let isProcessingUploadedFile = false;
+
+    async function processUploadedFile(file) {
+      if (!file || isProcessingUploadedFile) return;
+      isProcessingUploadedFile = true;
+
+      try {
+        showStatus(`Uploading & generating visual notes for "${file.name}"...`, 'info');
+        const dropZoneTitle = document.getElementById('drop-zone-title');
+        if (dropZoneTitle) dropZoneTitle.textContent = `Processing ${file.name}...`;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        // Helper functions for tab switching
+        const switchToOriginalTab = () => {
+          const originalTabBtn = document.querySelector('.tab[data-tab="original"]');
+          if (originalTabBtn) originalTabBtn.click();
+        };
+        const switchToVisualTab = () => {
+          const visualTabBtn = document.querySelector('.tab[data-tab="visual"]');
+          if (visualTabBtn) visualTabBtn.click();
+        };
+
+        // 1. Attempt backend API processing
+        try {
+          const response = await apiFetch('/api/v1/lecture-notes', {
+            method: 'POST',
+            body: formData
+          });
+
+          if (response && response.ok) {
+            const plan = await response.json();
+            if (plan && (plan.sections || plan.cards || plan.original_text)) {
+              render(plan, file);
+              switchToVisualTab();
+              showStatus("✅ Visual study sheet generated successfully!", 'success');
+              return;
+            }
+          }
+        } catch (err) {
+          console.warn('Backend API upload failed/bypassed, running client-side fallback:', err);
+        }
+
+        // 2. Client-side extraction fallback
+        const topicName = file.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, ' ');
+
+        // PDF Fallback via PDF.js
+        if (file.name.toLowerCase().endsWith('.pdf')) {
+          try {
+            const buffer = await file.arrayBuffer();
+            const pdfText = await extractPdfTextClient(buffer);
+            if (pdfText && pdfText.trim().length > 20) {
+              const sections = parseDocumentSectionsClient(pdfText, topicName);
+              const fallbackPlan = {
+                id: 'doc_pdf_' + Date.now(),
+                filename: file.name,
+                topic: topicName,
+                original_text: pdfText,
+                sections: sections,
+                cards: sections,
+                header: { title: topicName + " Visual Notes", subtitle: "Medical & Nursing Visual Notes" }
+              };
+              render(fallbackPlan, file);
+              switchToVisualTab();
+              showStatus(`Loaded "${file.name}" successfully`, 'success');
+              return;
+            }
+          } catch (pdfErr) {
+            console.warn('Client PDF parsing failed:', pdfErr);
+          }
+        }
+
+        // Text file & generic document fallback
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          let fileText = e.target.result || "";
+          if (typeof fileText === 'string') {
+            fileText = fileText.replace(/[^\x09\x0A\x0D\x20-\x7E]/g, ' ').replace(/\s+/g, ' ').trim();
+          }
+          if (!fileText || fileText.length < 20) {
+            fileText = `--- ${file.name} ---\n1. Document Overview\nUploaded file "${file.name}" is ready for study notes transformation.`;
+          }
+          const sections = parseDocumentSectionsClient(fileText, topicName);
+          const fallbackPlan = {
+            id: 'doc_client_' + Date.now(),
+            filename: file.name,
+            topic: topicName,
+            original_text: fileText,
+            sections: sections,
+            cards: sections,
+            header: { title: topicName + " Visual Notes", subtitle: "Medical & Nursing Visual Notes" }
+          };
+          render(fallbackPlan, file);
+          switchToVisualTab();
+          showStatus(`Loaded "${file.name}" successfully`, 'success');
+        };
+        reader.onerror = function () {
+          showStatus(`Failed to read "${file.name}". Please try another file.`, 'error');
+        };
+
+        try {
+          reader.readAsText(file);
+        } catch (readErr) {
+          const sections = parseDocumentSectionsClient("", topicName);
+          const fallbackPlan = {
+            id: 'doc_client_fallback_' + Date.now(),
+            filename: file.name,
+            topic: topicName,
+            original_text: `--- ${file.name} ---\n1. Document Overview\nUploaded file "${file.name}" ready.`,
+            sections: sections,
+            cards: sections
+          };
+          render(fallbackPlan, file);
+          switchToVisualTab();
+          showStatus(`Loaded "${file.name}"`, 'success');
+        }
+      } finally {
+        setTimeout(() => { isProcessingUploadedFile = false; }, 1000);
+      }
+    }
+
+    function initFileUploadAndDragDrop() {
+      const uploadBtn = document.getElementById('btn-upload-trigger');
+      const fileInput = document.getElementById('file-input');
+      const dropZone = document.getElementById('drop-zone');
+
+      // Global window dragover prevention to stop browser tab from leaving page on misdrag
+      window.addEventListener('dragover', (e) => e.preventDefault(), false);
+      window.addEventListener('drop', (e) => {
+        e.preventDefault();
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+          processUploadedFile(e.dataTransfer.files[0]);
+        }
+      }, false);
+
+      if (uploadBtn && fileInput) {
+        uploadBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          fileInput.click();
+        });
+      }
+
+      if (dropZone && fileInput) {
+        dropZone.addEventListener('click', (e) => {
+          e.preventDefault();
+          fileInput.click();
+        });
+
+        // Highlight drop zone when dragging file over it
+        ['dragenter', 'dragover'].forEach(eventName => {
+          dropZone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.style.borderColor = '#2563eb';
+            dropZone.style.background = '#eff6ff';
+          }, false);
+        });
+
+        ['dragleave'].forEach(eventName => {
+          dropZone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.style.borderColor = '';
+            dropZone.style.background = '';
+          }, false);
+        });
+
+        // Handle drop event & process dropped file
+        dropZone.addEventListener('drop', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropZone.style.borderColor = '';
+          dropZone.style.background = '';
+          const dt = e.dataTransfer;
+          if (dt && dt.files && dt.files.length > 0) {
+            processUploadedFile(dt.files[0]);
+          }
+        }, false);
+      }
+
+      if (fileInput) {
+        fileInput.addEventListener('change', (e) => {
+          if (e.target && e.target.files && e.target.files.length > 0) {
+            const uploadedFile = e.target.files[0];
+            processUploadedFile(uploadedFile);
+            setTimeout(() => { try { fileInput.value = ''; } catch (err) { } }, 500);
+          }
+        });
+      }
+    }
+
+    // Hook up "Generate Visual Notes" button in panel 1
+    const btnGenerateText = document.getElementById('btn-generate-text');
+    const rawTextareaElem = document.getElementById('original-text-content');
+    if (btnGenerateText && rawTextareaElem) {
+      btnGenerateText.addEventListener('click', async () => {
+        const text = rawTextareaElem.value || "";
+        if (!text.trim()) {
+          showStatus("Please enter or paste some lecture notes first!", "error");
+          return;
+        }
+        showStatus("Generating dynamic visual notes from text...", "info");
+        try {
+          const res = await apiFetch('/api/v1/lecture-notes/from-text', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: (currentPlan ? currentPlan.topic : "Manual Notes"), text: text })
+          });
+          if (res && res.ok) {
+            const plan = await res.json();
+            render(plan);
+            showStatus("✨ Visual notes generated! Displaying visual notes...", "success");
+            const visualTabBtn = document.querySelector('.tab[data-tab="visual"]');
+            if (visualTabBtn) visualTabBtn.click();
+            return;
+          }
+        } catch (err) {
+          console.warn("API text generation error, running client fallback:", err);
+        }
+        const sections = parseDocumentSectionsClient(text, "Study Notes");
+        const fallbackPlan = {
+          id: 'doc_text_' + Date.now(),
+          filename: "Manual_Notes.pdf",
+          topic: "Study Notes",
+          original_text: text,
+          sections: sections,
+          cards: sections
+        };
+        render(fallbackPlan);
+        showStatus(`✨ Visual notes generated (${sections.length} cards)`, "success");
+        const visualTabBtn = document.querySelector('.tab[data-tab="visual"]');
+        if (visualTabBtn) visualTabBtn.click();
+      });
+    }
+
+    // --- Render Engine ---
+    function render(plan, fileObj) {
+      if (!plan) return;
+      currentPlan = plan;
+
+      // Show header info row when plan is rendered
+      const fileInfoRow = document.getElementById('file-info-row');
+      if (fileInfoRow) fileInfoRow.style.display = 'flex';
+
+      // Dynamic Header Filename & Extension
+      const fullFileName = (fileObj && fileObj.name) || plan.filename || (plan.topic ? plan.topic + ".pdf" : "Uploaded_Notes.pdf");
+
+      let displayFileName = fullFileName;
+      if (!displayFileName.includes('.')) {
+        displayFileName += '.pdf';
+      }
+
+      // Update Main Header Title (#doc-filename)
+      const docFilenameElem = document.getElementById('doc-filename');
+      if (docFilenameElem) {
+        docFilenameElem.textContent = displayFileName;
+      }
+
+      // Update Visual & Edit Topic Titles
+      const topicTitle = plan.topic || displayFileName.replace(/\.[^/.]+$/, "").replace(/[_-]/g, ' ');
+      const visualTopicElem = document.getElementById('visual-topic-title');
+      if (visualTopicElem) visualTopicElem.textContent = topicTitle;
+
+      const editTopicElem = document.getElementById('edit-topic-title');
+      if (editTopicElem) editTopicElem.textContent = topicTitle;
+
+      // Update Drop Zone Title (simply swap text, keep box style & icon identical)
+      updateDropZoneUploadedState(displayFileName);
+
+      // Tab 2 & 3: Visual Notes HTML (populates plan.sections if needed)
+      const visualHTML = generateVisualNotesHTML(plan);
+      const visualContainer = document.getElementById('visual-notes-container');
+      if (visualContainer) visualContainer.innerHTML = visualHTML;
+
+      const editPreviewContainer = document.getElementById('edit-preview-container');
+      if (editPreviewContainer) editPreviewContainer.innerHTML = visualHTML;
+
+      // Tab 1: Original Notes (Show formatted structured document view by default)
+      const textContentElem = document.getElementById('original-text-content');
+      const formattedViewElem = document.getElementById('original-text-formatted-view');
+      const toggleEditBtn = document.getElementById('btn-toggle-raw-edit');
+
+      if (textContentElem) {
+        textContentElem.value = plan.original_text || "";
+        textContentElem.style.display = 'none'; // Hide raw textarea by default
+      }
+      if (formattedViewElem) {
+        formattedViewElem.style.display = 'block'; // Show formatted view by default
+        formattedViewElem.innerHTML = renderFormattedOriginalTextHTML(plan.original_text || "", plan.sections || plan.cards);
+      }
+      if (toggleEditBtn) {
+        toggleEditBtn.textContent = '✏️ Edit Raw Text';
+      }
+
+      // Enable Download Buttons
+      updateDownloadButtonsState();
+    }
+
+    function updateDropZoneUploadedState(fileName) {
+      const dropTitleElem = document.getElementById('drop-zone-title');
+      if (dropTitleElem && fileName) {
+        dropTitleElem.textContent = fileName;
+      }
+    }
+
+    function updateDownloadButtonsState() {
+      const textEditor = document.getElementById('original-text-content');
+      const btnDownloadOriginal = document.getElementById('btn-download-original');
+      const btnDownloadVisual = document.getElementById('btn-download-visual');
+
+      const hasText = textEditor && textEditor.value.trim().length > 0;
+
+      if (btnDownloadOriginal) {
+        if (hasText) {
+          btnDownloadOriginal.classList.remove('disabled');
+          btnDownloadOriginal.removeAttribute('disabled');
+        } else {
+          btnDownloadOriginal.classList.add('disabled');
+          btnDownloadOriginal.setAttribute('disabled', 'true');
+        }
+      }
+
+      if (btnDownloadVisual) {
+        if (hasText && currentPlan && (currentPlan.sections || currentPlan.cards)) {
+          btnDownloadVisual.classList.remove('disabled');
+          btnDownloadVisual.removeAttribute('disabled');
+        } else {
+          btnDownloadVisual.classList.add('disabled');
+          btnDownloadVisual.setAttribute('disabled', 'true');
+        }
+      }
+    }
+
+
+
+    // Nurse Avatar Graphic Component
+    function getNurseAvatarHTML() {
+      return `
+        <div class="w-16 h-20 flex-shrink-0 flex items-center justify-center relative">
+          <img src="/assets/nurse_avatar.png" alt="Nurse Avatar" class="w-16 h-20 object-contain drop-shadow-sm" onerror="this.onerror=null; this.parentElement.innerHTML='<svg class=\'w-16 h-16 flex-shrink-0\' viewBox=\'0 0 100 100\' fill=\'none\'><circle cx=\'50\' cy=\'35\' r=\'18\' fill=\'#FCE0D4\'/><path d=\'M38 20 H62 L60 12 H40 Z\' fill=\'#FFFFFF\'/><path d=\'M30 60 C30 50, 70 50, 70 60 L75 95 H25 Z\' fill=\'#3B82F6\'/><rect x=\'60\' y=\'55\' width=\'22\' height=\'30\' rx=\'3\' fill=\'#2563EB\'/></svg>';" />
+        </div>
+      `;
+    }
+
+    // Brain Avatar Graphic Component
+    function getBrainAvatarHTML() {
+      return `
+        <div class="w-16 h-16 flex-shrink-0 flex items-center justify-center relative">
+          <img src="/assets/brain_avatar.png" alt="Brain Avatar" class="w-16 h-16 object-contain drop-shadow-sm" onerror="this.onerror=null; this.parentElement.innerHTML='<svg class=\'w-16 h-16 flex-shrink-0\' viewBox=\'0 0 100 100\' fill=\'none\'><path d=\'M30 45 C20 35, 20 65, 32 70 C35 75, 50 78, 55 72 C65 75, 75 65, 70 50 C75 38, 60 30, 50 35 C40 30, 25 35, 30 45 Z\' fill=\'#FFB6C1\' stroke=\'#F472B6\' stroke-width=\'2.5\'/><path d=\'M72 20 Q72 10 80 10 Q88 10 88 20 L83 33 H77 Z\' fill=\'#FACC15\'/></svg>';" />
+        </div>
+      `;
+    }
+
+    // --- Dynamic Card Content Length Span Class ---
+    function getCardSpanClass(sec) {
+      const secTitleLower = (sec.title || sec.heading || '').toLowerCase();
+      const isNonPathway = /stage|phase|cause|diagnostic|nursing|intervention|medication|drug|complication|overview/i.test(secTitleLower);
+      const isPathwaySection = !isNonPathway && (sec.type === 'flowchart' || sec.section_type === 'flowchart' || /patho|pathway|flowchart|process|mechanism/i.test(secTitleLower));
+
+      if (isPathwaySection) {
+        return 'col-span-1 md:col-span-2'; // Full Row for Pathway Card
+      }
+      return 'col-span-1'; // 2 Cards per Row on Medium/Desktop Grid
+    }
+
+    function sanitizeAndGroupSectionsClient(sections) {
+      if (!sections || !Array.isArray(sections)) return [];
+      const validSections = sections.filter(s => s && typeof s === 'object');
+      if (!validSections.length) return [];
+
+      const accentsCycle = ["blue", "red", "purple", "green", "amber"];
+
+      const groupedCards = {};
+      const orderedKeys = [];
+
+      validSections.forEach(sec => {
+        const rawTitle = (sec.title || sec.heading || "").trim();
+        if (!rawTitle) return;
+        const cleanTitle = rawTitle.replace(/^\d+[\.\)]\s*/, '').trim();
+        let canonicalTitle = cleanTitle.toUpperCase();
+        if (canonicalTitle.includes("OVERVIEW")) canonicalTitle = "OVERVIEW";
+        else if (["TREATMENT", "MEDICATIONS", "MEDICATION", "PHARMACOLOGY", "TREATMENT AND MEDICATIONS", "TREATMENT & MEDICATIONS", "MANAGEMENT"].includes(canonicalTitle)) {
+          canonicalTitle = "TREATMENT & MEDICATIONS";
+        }
+
+        if (!groupedCards[canonicalTitle]) {
+          const secType = sec.type || sec.section_type || "tagged_items";
+          const accent = sec.accent || accentsCycle[orderedKeys.length % accentsCycle.length];
+
+          groupedCards[canonicalTitle] = {
+            id: sec.id || 'section_' + Math.random().toString(36).substr(2, 6),
+            title: canonicalTitle,
+            heading: canonicalTitle,
+            type: secType,
+            section_type: secType,
+            content: sec.content || "",
+            bullets: [],
+            items: [],
+            flows: sec.flows ? [...sec.flows] : [],
+            accent: accent
+          };
+          if (sec.isAnatomyCard) {
+            groupedCards[canonicalTitle].isAnatomyCard = true;
+            groupedCards[canonicalTitle].title = cleanTitle.toUpperCase();
+            groupedCards[canonicalTitle].heading = cleanTitle.toUpperCase();
+          }
+          if (sec.organ_type) groupedCards[canonicalTitle].organ_type = sec.organ_type;
+          orderedKeys.push(canonicalTitle);
+        }
+
+        const card = groupedCards[canonicalTitle];
+        const isNonPathway = /cause|diagnostic|nursing|intervention|medication|drug|complication|overview/i.test(canonicalTitle.toLowerCase());
+        const isStageOrPhase = /stage|phase/i.test(canonicalTitle.toLowerCase());
+        const isPathwaySection = (!isNonPathway && !isStageOrPhase && (sec.type === 'flowchart' || sec.section_type === 'flowchart' || /patho|pathway|flowchart|process|mechanism/i.test(canonicalTitle.toLowerCase()))) || (sec.flows && sec.flows.length > 0 && !isStageOrPhase);
+
+        if (isPathwaySection) {
+          card.type = 'flowchart';
+          card.section_type = 'flowchart';
+          if (sec.flows) {
+            sec.flows.forEach(fl => {
+              if (!card.flows.some(existingFl => JSON.stringify(existingFl) === JSON.stringify(fl))) {
+                card.flows.push(fl);
+              }
+            });
+          }
+        } else if (isNonPathway || isStageOrPhase) {
+          card.type = 'tagged_items';
+          card.section_type = 'tagged_items';
+          if (sec.flows) {
+            card.flows = [...sec.flows];
+          }
+        }
+
+        let rawItems = sec.items ? [...sec.items] : [];
+        let rawBullets = sec.bullets ? [...sec.bullets] : [];
+        let rawContent = sec.content || "";
+
+        if (!rawItems.length && rawBullets.length) {
+          rawItems = rawBullets.map(b => ({ label: cleanTitle.toUpperCase(), text: b }));
+        } else if (!rawItems.length && rawContent) {
+          rawItems = [{ label: cleanTitle.toUpperCase(), text: rawContent }];
+        }
+
+        const existingItemTuples = new Set(card.items.map(it => ((it.label || "").trim().toLowerCase() + "|||" + (it.text || "").trim().toLowerCase())));
+        const existingBulletTexts = new Set(card.bullets.filter(b => typeof b === 'string').map(b => b.trim().toLowerCase()));
+
+        rawItems.forEach(it => {
+          const itCopy = Object.assign({}, it);
+          let lbl = (itCopy.label || "").trim();
+          let txt = (itCopy.text || "").trim();
+
+          if (!lbl || ["overview", "subheader", "key point"].includes(lbl.toLowerCase())) {
+            lbl = cleanTitle.toUpperCase();
+            itCopy.label = lbl;
+          }
+
+          const keyTuple = lbl.toLowerCase() + "|||" + txt.toLowerCase();
+          if (!existingItemTuples.has(keyTuple)) {
+            card.items.push(itCopy);
+            existingItemTuples.add(keyTuple);
+          }
+
+          if (txt && !existingBulletTexts.has(txt.toLowerCase())) {
+            card.bullets.push(txt);
+            existingBulletTexts.add(txt.toLowerCase());
+          }
+        });
+
+        rawBullets.forEach(b => {
+          if (typeof b === 'string' && b.trim()) {
+            const bClean = b.trim();
+            if (!existingBulletTexts.has(bClean.toLowerCase())) {
+              card.bullets.push(bClean);
+              existingBulletTexts.add(bClean.toLowerCase());
+            }
+          }
+        });
+      });
+
+      return orderedKeys.map(k => groupedCards[k]);
+    }
+
+
+
+    // --- Dynamic Card Generation (Tailwind CSS Grid & Dynamic Section Count) ---
+    function generateVisualNotesHTML(plan) {
+      if (!plan) return '';
+
+      const header = plan.header || plan.document || {};
+      const bp = plan.bottom_panels || {};
+      const topicTitle = plan.topic || "Visual Notes";
+
+      // Obtain dynamic array of sections / cards
+      let sections = plan.sections || plan.cards;
+      if (!sections || !sections.length) {
+        sections = parseDocumentSectionsClient(plan.original_text || "", topicTitle);
+      }
+      sections = sanitizeAndGroupSectionsClient(sections);
+
+      // Dynamic Organ Detection with Priority (Title -> Headings -> Body Text)
+      function detectDocumentOrgan(title, text, secs) {
+        const titleLower = (title || '').toLowerCase();
+        const headingsLower = (secs || []).map(s => (s.title || s.heading || '')).join(' ').toLowerCase();
+        const bodyLower = (text || '').toLowerCase().replace(/\bheart rate\b/g, '').replace(/\brespiratory rate\b/g, '');
+
+        if (/\b(brain|neuro|cerebr|head|central nervous|cns|stroke|seizure|encephal)\b/i.test(titleLower)) return { type: 'brain', name: 'Brain' };
+        if (/\b(lung|lungs|pulmon|respir|ards|asthma|copd|pneumonia|breath)\b/i.test(titleLower)) return { type: 'lungs', name: 'Lungs' };
+        if (/\b(kidney|renal|nephron|glomerul|aki|ckd|dialysis)\b/i.test(titleLower)) return { type: 'kidney', name: 'Kidneys' };
+        if (/\b(liver|hepatic|biliary|gallbladder|hepatitis|cirrhosis)\b/i.test(titleLower)) return { type: 'liver', name: 'Liver' };
+        if (/\b(stomach|gastric|peptic|digestive|gerd|ulcer|gut)\b/i.test(titleLower)) return { type: 'stomach', name: 'Stomach' };
+        if (/\b(heart|cardiac|cardiovascular|myocard|atrium|ventricle|aorta)\b/i.test(titleLower)) return { type: 'heart', name: 'Heart' };
+        if (/\b(vessel|vascular|artery|vein|capillary|dvt|hypertension)\b/i.test(titleLower)) return { type: 'vessels', name: 'Blood Vessels' };
+
+        if (/\b(brain|neuro|cerebr|cns|neuron|cortex)\b/i.test(headingsLower)) return { type: 'brain', name: 'Brain' };
+        if (/\b(lung|lungs|pulmon|respir|alveoli)\b/i.test(headingsLower)) return { type: 'lungs', name: 'Lungs' };
+        if (/\b(kidney|renal|nephron|glomerul)\b/i.test(headingsLower)) return { type: 'kidney', name: 'Kidneys' };
+        if (/\b(liver|hepatic|biliary|gallbladder)\b/i.test(headingsLower)) return { type: 'liver', name: 'Liver' };
+        if (/\b(stomach|gastric|peptic|digestive)\b/i.test(headingsLower)) return { type: 'stomach', name: 'Stomach' };
+        if (/\b(heart|cardiac|cardiovascular|myocardium)\b/i.test(headingsLower)) return { type: 'heart', name: 'Heart' };
+        if (/\b(vessel|vascular|artery|vein|capillary)\b/i.test(headingsLower)) return { type: 'vessels', name: 'Blood Vessels' };
+
+        if (/\b(brain|neuro|cerebr|cns|neuron|cortex)\b/i.test(bodyLower)) return { type: 'brain', name: 'Brain' };
+        if (/\b(lung|lungs|pulmon|respir|alveoli)\b/i.test(bodyLower)) return { type: 'lungs', name: 'Lungs' };
+        if (/\b(kidney|renal|nephron|glomerul)\b/i.test(bodyLower)) return { type: 'kidney', name: 'Kidneys' };
+        if (/\b(liver|hepatic|biliary|gallbladder)\b/i.test(bodyLower)) return { type: 'liver', name: 'Liver' };
+        if (/\b(stomach|gastric|peptic|digestive)\b/i.test(bodyLower)) return { type: 'stomach', name: 'Stomach' };
+        if (/\b(heart|cardiac|cardiovascular|myocardium)\b/i.test(bodyLower)) return { type: 'heart', name: 'Heart' };
+        if (/\b(vessel|vascular|artery|vein|capillary)\b/i.test(bodyLower)) return { type: 'vessels', name: 'Blood Vessels' };
+
+        return { type: 'brain', name: 'Brain' };
+      }
+
+      const organInfo = detectDocumentOrgan(topicTitle, plan.original_text || '', sections);
+      const docOrganType = organInfo.type;
+      const docOrganName = organInfo.name;
+
+      // Check if sections contain Anatomy card (preserve original titles for other sections)
+      let foundAnatomy = false;
+      sections.forEach(sec => {
+        const titleNorm = (sec.title || sec.heading || '').toLowerCase();
+        if (!foundAnatomy && (titleNorm.includes('anatomy') || (titleNorm.includes('structure') && !titleNorm.includes('cell') && !titleNorm.includes('protective')))) {
+          foundAnatomy = true;
+          sec.isAnatomyCard = true;
+        }
+      });
+
+      const defaultAnatomyItems = {
+        lungs: [
+          { label: "PRIMARY STRUCTURE", text: "Paired respiratory organs in thoracic cavity separated by mediastinum." },
+          { label: "ALVEOLAR MEMBRANE", text: "Alveoli capillaries form thin membrane for O2 & CO2 gas exchange." },
+          { label: "SURFACTANT LAYER", text: "Phospholipid lining reducing surface tension to prevent atelectasis." },
+          { label: "PLEURAL SPACE", text: "Visceral & parietal pleura lubricated by serous fluid for smooth lung expansion." }
+        ],
+        heart: [
+          { label: "MYOCARDIUM", text: "Thick muscular middle layer driving systemic & pulmonary circulation." },
+          { label: "FOUR CHAMBERS", text: "Right/Left Atria and Ventricles regulating unidirectional blood flow." },
+          { label: "VALVULAR APPARATUS", text: "Atrioventricular & semilunar valves preventing retrograde blood flow." },
+          { label: "PERICARDIAL SAC", text: "Double-walled sac protecting cardiac tissue & cushioning movement." }
+        ],
+        kidney: [
+          { label: "NEPHRON UNITS", text: "Functional units filtering metabolic wastes & maintaining fluid balance." },
+          { label: "GLOMERULUS", text: "Capillary bed performing high-pressure blood plasma filtration." },
+          { label: "RENAL CORTEX & MEDULLA", text: "Outer filtration layer & inner pyramid region concentrating urine." },
+          { label: "JUXTAGLOMERULAR APPARATUS", text: "Regulates blood pressure via renin secretion and sodium balance." }
+        ],
+        liver: [
+          { label: "HEPATIC LOBULES", text: "Functional units processing nutrients, toxins, and bile synthesis." },
+          { label: "HEPATOCYTES & SINUSOIDS", text: "Primary metabolic cells exchanging nutrients with portal circulation." },
+          { label: "BILIARY TREE", text: "Duct system collecting and transporting bile for lipid digestion." },
+          { label: "KUPFFER CELLS", text: "Specialized hepatic macrophages clearing pathogens & cell debris." }
+        ],
+        brain: [
+          { label: "CEREBRAL CORTEX", text: "Outer neural layer responsible for memory, reasoning, language, and sensory integration." },
+          { label: "BRAINSTEM & CNS", text: "Regulates autonomic functions (respiration, cardiac rhythm, vasomotor control) with spinal cord." },
+          { label: "MOTOR & SENSORY PATHWAYS", text: "Coordinates voluntary/involuntary motor movements & interprets somatic sensory inputs." },
+          { label: "BLOOD-BRAIN BARRIER", text: "Selective endothelial barrier protecting brain tissue & maintaining neural homeostasis." }
+        ],
+        stomach: [
+          { label: "GASTRIC MUCOSA", text: "Parietal & chief cells secreting HCl acid & pepsinogen for digestion." },
+          { label: "MUSCULARIS EXTERNA", text: "Three smooth muscle layers enabling churning & mechanical breakdown." },
+          { label: "PYLORIC SPHINCTER", text: "Regulates controlled passage of acidic chyme into duodenum." },
+          { label: "RUGAE FOLDS", text: "Mucosal folds allowing gastric expansion during fluid/food intake." }
+        ],
+        vessels: [
+          { label: "TUNICA INTIMA & ENDOTHELIUM", text: "Vascular lining regulating vascular tone, permeability, and smooth blood flow." },
+          { label: "TUNICA MEDIA", text: "Smooth muscle and elastic fibers regulating vasodilation and vasoconstriction." },
+          { label: "TUNICA ADVENTITIA", text: "Outer connective tissue anchoring blood vessels to surrounding tissues." },
+          { label: "CAPILLARY BED", text: "Microvascular network facilitating tissue oxygenation and nutrient exchange." }
+        ]
+      };
+
+      const defaultStagesItems = {
+        lungs: [
+          { label: "STAGE 1: EXUDATIVE PHASE", text: "Alveolar edema, capillary congestion, and neutrophil infiltration (Days 1-7)." },
+          { label: "STAGE 2: PROLIFERATIVE PHASE", text: "Type II pneumocyte hyperplasia and cellular tissue repair (Days 7-21)." },
+          { label: "STAGE 3: FIBROTIC PHASE", text: "Extensive pulmonary fibrosis, lung remodeling, and compliance loss (>21 Days)." }
+        ],
+        heart: [
+          { label: "STAGE A: AT RISK", text: "High risk for heart failure without structural disease or symptoms." },
+          { label: "STAGE B: PRE-HEART FAILURE", text: "Structural heart disease present without clinical signs or symptoms." },
+          { label: "STAGE C: SYMPTOMATIC HF", text: "Structural heart disease with past or current heart failure symptoms." },
+          { label: "STAGE D: ADVANCED HF", text: "Marked refractory symptoms at rest requiring specialized interventions." }
+        ],
+        kidney: [
+          { label: "STAGE 1: NORMAL / HIGH GFR", text: "Kidney damage with normal or elevated GFR (≥90 mL/min/1.73m²)." },
+          { label: "STAGE 2: MILD DECREASE", text: "Mild reduction in renal function (GFR 60-89 mL/min/1.73m²)." },
+          { label: "STAGE 3: MODERATE DECREASE", text: "Moderate GFR decline (Stage 3a: 45-59, Stage 3b: 30-44 mL/min)." },
+          { label: "STAGE 4: SEVERE DECREASE", text: "Severe loss of kidney function (GFR 15-29 mL/min/1.73m²)." },
+          { label: "STAGE 5: KIDNEY FAILURE", text: "End-stage renal disease (ESRD) requiring dialysis or transplant (GFR <15)." }
+        ],
+        liver: [
+          { label: "STAGE 1: INFLAMMATION", text: "Early liver cell swelling and hepatic inflammation." },
+          { label: "STAGE 2: FIBROSIS", text: "Scar tissue begins to form around liver tissue and portal triads." },
+          { label: "STAGE 3: CIRRHOSIS", text: "Permanent irreversible nodular scarring altering hepatic vasculature." },
+          { label: "STAGE 4: LIVER FAILURE", text: "End-stage hepatic decompensation requiring liver transplantation." }
+        ],
+        brain: [
+          { label: "STAGE 1: EARLY / MILD", text: "Initial cognitive decline, subtle memory loss, and focal symptoms." },
+          { label: "STAGE 2: MODERATE / PROGRESSIVE", text: "Increasing disorientation, speech difficulty, and impaired motor control." },
+          { label: "STAGE 3: SEVERE / ADVANCED", text: "Profound neural deficits, loss of autonomy, and autonomic instability." }
+        ],
+        stomach: [
+          { label: "STAGE 1: MUCOSAL DAMAGE", text: "Superficial gastric mucosal irritation and acid erosion." },
+          { label: "STAGE 2: ULCER FORMATION", text: "Deeper submucosal erosion forming active gastric ulceration." },
+          { label: "STAGE 3: COMPLICATED DISEASE", text: "Risk of gastric perforation, bleeding, or pyloric stenosis." }
+        ],
+        vessels: [
+          { label: "STAGE 1: ENDOTHELIAL DAMAGE", text: "Vascular wall shear stress and lipid streak accumulation." },
+          { label: "STAGE 2: PLAQUE FORMATION", text: "Fibrous cap formation causing luminal arterial narrowing." },
+          { label: "STAGE 3: OCCLUSION / RUPTURE", text: "Critical tissue ischemia, thrombosis, or plaque rupture." }
+        ]
+      };
+
+      const defaultPathwayMap = {
+        lungs: {
+          id: "section_pathway_default",
+          title: "ARDS & RESPIRATORY PATHOPHYSIOLOGY PATHWAY",
+          heading: "ARDS & RESPIRATORY PATHOPHYSIOLOGY PATHWAY",
+          type: "flowchart",
+          section_type: "flowchart",
+          flows: [{
+            label: "ARDS PATHOPHYSIOLOGY PATHWAY",
+            steps: [
+              { name: "INJURY INITIATION", subtext: "Direct or indirect pulmonary insult triggers systemic inflammatory release." },
+              { name: "ENDOTHELIAL DAMAGE", subtext: "Neutrophil infiltration damages alveolar-capillary membrane barrier." },
+              { name: "ALVEOLAR FLUID EXUDATE", subtext: "Protein-rich exudative fluid fills alveoli and inactivates surfactant." },
+              { name: "ATELECTASIS & HYPOXEMIA", subtext: "Alveolar collapse leads to severe V/Q mismatch and refractory hypoxemia." }
+            ]
+          }],
+          accent: "purple"
+        },
+        heart: {
+          id: "section_pathway_default",
+          title: "CARDIAC BLOOD FLOW PATHWAY",
+          heading: "CARDIAC BLOOD FLOW PATHWAY",
+          type: "flowchart",
+          section_type: "flowchart",
+          flows: [{
+            label: "CARDIAC CIRCULATION PATHWAY",
+            steps: [
+              { name: "RIGHT ATRIUM", subtext: "Receives deoxygenated venous return from vena cava." },
+              { name: "RIGHT VENTRICLE", subtext: "Pumps deoxygenated blood through pulmonary artery into lungs." },
+              { name: "LEFT ATRIUM", subtext: "Receives oxygen-rich blood returning from pulmonary veins." },
+              { name: "LEFT VENTRICLE & AORTA", subtext: "Propels oxygenated blood into systemic arterial circulation." }
+            ]
+          }],
+          accent: "purple"
+        },
+        kidney: {
+          id: "section_pathway_default",
+          title: "RENAL FILTRATION PATHWAY",
+          heading: "RENAL FILTRATION PATHWAY",
+          type: "flowchart",
+          section_type: "flowchart",
+          flows: [{
+            label: "NEPHRON URINE FORMATION PATHWAY",
+            steps: [
+              { name: "GLOMERULAR FILTRATION", subtext: "High-pressure plasma filtration at Bowman capsule." },
+              { name: "PROXIMAL REABSORPTION", subtext: "Reabsorption of glucose, amino acids, water, and sodium." },
+              { name: "LOOP OF HENLE COUNTERCURRENT", subtext: "Establishes osmotic gradient concentrating tubular fluid." },
+              { name: "COLLECTING DUCT EXCRETION", subtext: "Final water reabsorption under ADH control and urine excretion." }
+            ]
+          }],
+          accent: "purple"
+        },
+        liver: {
+          id: "section_pathway_default",
+          title: "HEPATIC CIRCULATION PATHWAY",
+          heading: "HEPATIC CIRCULATION PATHWAY",
+          type: "flowchart",
+          section_type: "flowchart",
+          flows: [{
+            label: "HEPATIC PROCESSING PATHWAY",
+            steps: [
+              { name: "PORTAL INFLOW", subtext: "Dual blood supply from hepatic artery and portal vein enters sinusoids." },
+              { name: "HEPATOCYTE CLEARANCE", subtext: "Metabolic transformation, toxin neutralization, and glycogen storage." },
+              { name: "BILE SYNTHESIS", subtext: "Secretes bile acids and conjugated bilirubin into bile canaliculi." },
+              { name: "HEPATIC VEIN OUTFLOW", subtext: "Cleared blood drains to inferior vena cava while bile drains to gallbladder." }
+            ]
+          }],
+          accent: "purple"
+        },
+        brain: {
+          id: "section_pathway_default",
+          title: "NEURAL REFLEX & CONDUCTION PATHWAY",
+          heading: "NEURAL REFLEX & CONDUCTION PATHWAY",
+          type: "flowchart",
+          section_type: "flowchart",
+          flows: [{
+            label: "CENTRAL NERVOUS SYSTEM PATHWAY",
+            steps: [
+              { name: "SENSORY RECEPTOR INPUT", subtext: "Periphery detects environmental stimulus and transmits via afferent nerve." },
+              { name: "SPINAL & CEREBRAL INTEGRATION", subtext: "Interneurons process signal in cerebral cortex and thalamic relay." },
+              { name: "EFFERENT MOTOR COMMAND", subtext: "Motor cortex dispatches impulse down corticospinal tract." },
+              { name: "TARGET EFFECTOR RESPONSE", subtext: "Neuromuscular junction activates target muscle or autonomic gland." }
+            ]
+          }],
+          accent: "purple"
+        },
+        stomach: {
+          id: "section_pathway_default",
+          title: "GASTRIC DIGESTIVE PATHWAY",
+          heading: "GASTRIC DIGESTIVE PATHWAY",
+          type: "flowchart",
+          section_type: "flowchart",
+          flows: [{
+            label: "GASTRIC SECRETION & MOTILITY PATHWAY",
+            steps: [
+              { name: "CEPHALIC & GASTRIC PHASE", subtext: "Vagal stimulation & gastrin release trigger HCl acid secretion." },
+              { name: "MECHANICAL CHURNING", subtext: "Muscularis externa contractions mix food into acidic chyme." },
+              { name: "PROTEIN DIGESTION", subtext: "Pepsin breaks down proteins in low pH environment." },
+              { name: "PYLORIC EMPTYING", subtext: "Controlled release of chyme through pyloric sphincter into duodenum." }
+            ]
+          }],
+          accent: "purple"
+        },
+        vessels: {
+          id: "section_pathway_default",
+          title: "VASCULAR HEMODYNAMIC PATHWAY",
+          heading: "VASCULAR HEMODYNAMIC PATHWAY",
+          type: "flowchart",
+          section_type: "flowchart",
+          flows: [{
+            label: "VASCULAR PERFUSION PATHWAY",
+            steps: [
+              { name: "ARTERIAL INFLOW", subtext: "High pressure oxygenated surge delivered from aorta into major arteries." },
+              { name: "ARTERIOLAR RESISTANCE", subtext: "Smooth muscle tone regulates peripheral resistance and blood pressure." },
+              { name: "CAPILLARY EXCHANGE", subtext: "Microvascular diffusion delivers O2 and nutrients while picking up CO2." },
+              { name: "VENOUS RETURN", subtext: "Low pressure return facilitated by skeletal muscle pumps and valves." }
+            ]
+          }],
+          accent: "purple"
+        }
+      };
+
+      let overviewCard = null;
+      let anatomyCardSec = null;
+      let pathwayCards = [];
+      let otherRegularCards = [];
+
+      sections.forEach((sec, idx) => {
+        const titleLower = (sec.title || sec.heading || '').toLowerCase();
+        const isNonPathway = /cause|diagnostic|nursing|intervention|medication|drug|complication/i.test(titleLower);
+        const isStageOrPhase = /stage|phase/i.test(titleLower);
+        const isPathway = (!isNonPathway && !isStageOrPhase && (sec.type === 'flowchart' || sec.section_type === 'flowchart' || /patho|pathway|flowchart|process|mechanism/i.test(titleLower))) || (sec.flows && sec.flows.length > 0 && !isStageOrPhase);
+        const isOverview = (/overview|definition|introduction|background|what is/i.test(titleLower) || idx === 0) && !isStageOrPhase;
+        const isAnatomy = sec.isAnatomyCard || /anatomy|structure/i.test(titleLower);
+
+        if (isOverview && !overviewCard && !isAnatomy && !isPathway) {
+          overviewCard = sec;
+          overviewCard.title = 'OVERVIEW';
+          overviewCard.heading = 'OVERVIEW';
+        } else if (isOverview && overviewCard) {
+          if (sec.items && sec.items.length) {
+            if (!overviewCard.items) overviewCard.items = [];
+            sec.items.forEach(it => {
+              if (!overviewCard.items.some(existing => (existing.text || '').toLowerCase() === (it.text || '').toLowerCase())) {
+                overviewCard.items.push(it);
+              }
+            });
+          }
+          if (sec.bullets && sec.bullets.length) {
+            if (!overviewCard.bullets) overviewCard.bullets = [];
+            sec.bullets.forEach(b => {
+              if (!overviewCard.bullets.some(existing => (existing || '').toLowerCase() === (b || '').toLowerCase())) {
+                overviewCard.bullets.push(b);
+              }
+            });
+          }
+        } else if (isAnatomy && !anatomyCardSec) {
+          anatomyCardSec = sec;
+          anatomyCardSec.isAnatomyCard = true;
+          anatomyCardSec.title = `ANATOMY OF THE ${docOrganName.toUpperCase()}`;
+          anatomyCardSec.heading = anatomyCardSec.title;
+        } else if (isPathway) {
+          pathwayCards.push(sec);
+        } else {
+          otherRegularCards.push(sec);
+        }
+      });
+
+      if (!overviewCard) {
+        if (otherRegularCards.length > 0) {
+          overviewCard = otherRegularCards.shift();
+        } else {
+          overviewCard = {
+            id: 'section_overview',
+            title: 'OVERVIEW',
+            heading: 'OVERVIEW',
+            type: 'tagged_items',
+            section_type: 'tagged_items',
+            items: [{ label: 'DEFINITION & OVERVIEW', text: topicTitle + ' study notes and clinical summary.' }],
+            accent: 'blue'
+          };
+        }
+        overviewCard.title = 'OVERVIEW';
+        overviewCard.heading = 'OVERVIEW';
+      }
+
+      if (overviewCard && sections.length > 1) {
+        const leakageLabels = ["pathophysiology", "patho", "diagnostic", "nursing", "intervention", "treatment", "medication"];
+        const leakagePhrases = ["chest xray", "white out", "bronchoscopy", "blood culture", "abg blood", "v/q mismatch", "stiff lungs"];
+        if (overviewCard.items && Array.isArray(overviewCard.items)) {
+          overviewCard.items = overviewCard.items.filter(it => {
+            const lbl = (it.label || "").trim().toLowerCase();
+            const txt = (it.text || "").trim().toLowerCase();
+            const isLeaked = leakageLabels.some(kl => lbl.includes(kl)) || leakagePhrases.some(kp => txt.includes(kp));
+            return !isLeaked;
+          });
+        }
+      }
+
+      if (!anatomyCardSec) {
+        anatomyCardSec = {
+          id: 'section_anatomy_organ',
+          title: `ANATOMY OF THE ${docOrganName.toUpperCase()}`,
+          heading: `ANATOMY OF THE ${docOrganName.toUpperCase()}`,
+          type: 'tagged_items',
+          section_type: 'tagged_items',
+          organ_type: docOrganType,
+          items: defaultAnatomyItems[docOrganType] || defaultAnatomyItems.lungs,
+          isAnatomyCard: true,
+          accent: 'blue'
+        };
+      } else if (!anatomyCardSec.items || !anatomyCardSec.items.length || anatomyCardSec.items.every(it => !(it.text || '').trim())) {
+        anatomyCardSec.items = defaultAnatomyItems[docOrganType] || defaultAnatomyItems.lungs;
+      }
+
+      // Convert real text of pathway cards into flow steps if flows is missing or empty
+      pathwayCards.forEach(pCard => {
+        if (!pCard.flows || !pCard.flows.length || !pCard.flows[0].steps || !pCard.flows[0].steps.length) {
+          const rawSource = pCard.items || pCard.bullets || [];
+          const flowSteps = [];
+          rawSource.forEach(st => {
+            if (typeof st === 'object' && st) {
+              const lbl = (st.label || st.tag || "").trim();
+              const txt = (st.text || st.desc || "").trim();
+              if (lbl && txt && !["pathophysiology", "patho", "overview"].includes(lbl.toLowerCase())) {
+                flowSteps.push({ name: lbl.toUpperCase(), subtext: txt });
+              } else if (txt) {
+                const parts = txt.split(/[:|–\-]/);
+                if (parts.length >= 2 && parts[0].trim().length < 30 && parts[1].trim().length > 1) {
+                  flowSteps.push({ name: parts[0].trim().toUpperCase(), subtext: parts.slice(1).join('-').trim() });
+                } else {
+                  flowSteps.push({ name: txt.substring(0, 30).toUpperCase(), subtext: txt });
+                }
+              }
+            } else if (typeof st === 'string' && st.trim()) {
+              const parts = st.trim().split(/[:|–\-]/);
+              if (parts.length >= 2 && parts[0].trim().length < 30 && parts[1].trim().length > 1) {
+                flowSteps.push({ name: parts[0].trim().toUpperCase(), subtext: parts.slice(1).join('-').trim() });
+              } else {
+                flowSteps.push({ name: st.trim().substring(0, 30).toUpperCase(), subtext: st.trim() });
+              }
+            }
+          });
+          if (flowSteps.length) {
+            const cleanTitle = (pCard.title || pCard.heading || 'PATHOPHYSIOLOGY').replace(/^\d+[\.\)]\s*/, '').trim().toUpperCase();
+            pCard.type = 'flowchart';
+            pCard.section_type = 'flowchart';
+            pCard.flows = [{
+              label: `${cleanTitle} PATHWAY`,
+              steps: flowSteps
+            }];
+          }
+        }
+      });
+
+      if (!pathwayCards || pathwayCards.length === 0) {
+        const fallbackPathway = defaultPathwayMap[docOrganType] || defaultPathwayMap.lungs;
+        pathwayCards.push(fallbackPathway);
+      }
+
+      let orderedSections = [];
+      orderedSections.push(overviewCard);
+      orderedSections.push(anatomyCardSec);
+      pathwayCards.forEach(pCard => orderedSections.push(pCard));
+      otherRegularCards.forEach(rCard => orderedSections.push(rCard));
+
+      sections = orderedSections;
+      plan.sections = sections;
+      plan.cards = sections;
+
+      let html = `<div class="vnotes-dashboard-container flex flex-col gap-6 my-2">`;
+
+      // Header Block
+      html += `
+        <div class="vnotes-header-block">
+          <h1 class="text-2xl font-extrabold text-slate-800 tracking-tight mb-1">${esc(header.title || topicTitle + " Visual Notes")}</h1>
+          <p class="text-xs font-medium text-slate-500">${esc(header.subtitle || "AI-converted from your uploaded materials")}</p>
+        </div>
+      `;
+
+      // Container using 2 Cards per Row Grid (md:grid-cols-2)
+      html += `<div class="grid grid-cols-1 md:grid-cols-2 gap-6">`;
+
+      const pathwayStepIconMap = {
+        brain: '🧠',
+        lungs: '🫁',
+        heart: '🫀',
+        kidney: '🩸',
+        liver: '🧪',
+        stomach: '🫃',
+        vessels: '🩸'
+      };
+      const pathwayStepIcon = pathwayStepIconMap[docOrganType] || '🧠';
+
+      function resolveDynamicThemeStyle(colorInput) {
+        const raw = String(colorInput || 'blue').toLowerCase().trim();
+
+        const tailwindMap = {
+          pink: {
+            title: "text-pink-950",
+            badge: "text-pink-800 bg-pink-50 border-pink-200/90",
+            check: "text-pink-600",
+            stepBg: ["bg-pink-50/90 border-pink-200/90 text-pink-950", "bg-rose-50/90 border-rose-200/90 text-rose-950", "bg-fuchsia-50/90 border-fuchsia-200/90 text-fuchsia-950"]
+          },
+          rose: {
+            title: "text-rose-950",
+            badge: "text-rose-800 bg-rose-50 border-rose-200/90",
+            check: "text-rose-600",
+            stepBg: ["bg-rose-50/90 border-rose-200/90 text-rose-950", "bg-pink-50/90 border-pink-200/90 text-pink-950", "bg-red-50/90 border-red-200/90 text-red-950"]
+          },
+          purple: {
+            title: "text-purple-950",
+            badge: "text-purple-800 bg-purple-50 border-purple-200/90",
+            check: "text-purple-600",
+            stepBg: ["bg-purple-50/90 border-purple-200/90 text-purple-950", "bg-indigo-50/90 border-indigo-200/90 text-indigo-950", "bg-violet-50/90 border-violet-200/90 text-violet-950"]
+          },
+          violet: {
+            title: "text-violet-950",
+            badge: "text-violet-800 bg-violet-50 border-violet-200/90",
+            check: "text-violet-600",
+            stepBg: ["bg-violet-50/90 border-violet-200/90 text-violet-950", "bg-purple-50/90 border-purple-200/90 text-purple-950", "bg-indigo-50/90 border-indigo-200/90 text-indigo-950"]
+          },
+          indigo: {
+            title: "text-indigo-950",
+            badge: "text-indigo-800 bg-indigo-50 border-indigo-200/90",
+            check: "text-indigo-600",
+            stepBg: ["bg-indigo-50/90 border-indigo-200/90 text-indigo-950", "bg-purple-50/90 border-purple-200/90 text-purple-950", "bg-violet-50/90 border-violet-200/90 text-violet-950"]
+          },
+          blue: {
+            title: "text-blue-900",
+            badge: "text-blue-800 bg-blue-50 border-blue-200/90",
+            check: "text-blue-600",
+            stepBg: ["bg-blue-50/90 border-blue-200/90 text-blue-950", "bg-sky-50/90 border-sky-200/90 text-sky-950", "bg-indigo-50/90 border-indigo-200/90 text-indigo-950"]
+          },
+          sky: {
+            title: "text-sky-950",
+            badge: "text-sky-800 bg-sky-50 border-sky-200/90",
+            check: "text-sky-600",
+            stepBg: ["bg-sky-50/90 border-sky-200/90 text-sky-950", "bg-cyan-50/90 border-cyan-200/90 text-cyan-950", "bg-blue-50/90 border-blue-200/90 text-blue-950"]
+          },
+          teal: {
+            title: "text-teal-950",
+            badge: "text-teal-800 bg-teal-50 border-teal-200/90",
+            check: "text-teal-600",
+            stepBg: ["bg-teal-50/90 border-teal-200/90 text-teal-950", "bg-emerald-50/90 border-emerald-200/90 text-emerald-950", "bg-cyan-50/90 border-cyan-200/90 text-cyan-950"]
+          },
+          emerald: {
+            title: "text-emerald-950",
+            badge: "text-emerald-800 bg-emerald-50 border-emerald-200/90",
+            check: "text-emerald-600",
+            stepBg: ["bg-emerald-50/90 border-emerald-200/90 text-emerald-950", "bg-teal-50/90 border-teal-200/90 text-teal-950", "bg-green-50/90 border-green-200/90 text-green-950"]
+          },
+          green: {
+            title: "text-emerald-950",
+            badge: "text-emerald-800 bg-emerald-50 border-emerald-200/90",
+            check: "text-emerald-600",
+            stepBg: ["bg-emerald-50/90 border-emerald-200/90 text-emerald-950", "bg-teal-50/90 border-teal-200/90 text-teal-950", "bg-green-50/90 border-green-200/90 text-green-950"]
+          },
+          amber: {
+            title: "text-amber-950",
+            badge: "text-amber-900 bg-amber-50 border-amber-200/90",
+            check: "text-amber-600",
+            stepBg: ["bg-amber-50/90 border-amber-200/90 text-amber-950", "bg-orange-50/90 border-orange-200/90 text-orange-950", "bg-yellow-50/90 border-yellow-200/90 text-yellow-950"]
+          },
+          orange: {
+            title: "text-orange-950",
+            badge: "text-orange-900 bg-orange-50 border-orange-200/90",
+            check: "text-orange-600",
+            stepBg: ["bg-orange-50/90 border-orange-200/90 text-orange-950", "bg-amber-50/90 border-amber-200/90 text-amber-950", "bg-yellow-50/90 border-yellow-200/90 text-yellow-950"]
+          }
+        };
+
+        for (const [key, styleObj] of Object.entries(tailwindMap)) {
+          if (raw.includes(key)) return styleObj;
+        }
+
+        if (raw.includes('pink') || raw.includes('rose') || raw.includes('magenta') || raw.includes('fuchsia')) return tailwindMap.pink;
+        if (raw.includes('lavender') || raw.includes('plum') || raw.includes('lilac') || raw.includes('purple')) return tailwindMap.purple;
+        if (raw.includes('peach') || raw.includes('coral') || raw.includes('salmon')) return tailwindMap.orange;
+        if (raw.includes('mint') || raw.includes('sage') || raw.includes('green') || raw.includes('pastel') || raw.includes('emerald')) return tailwindMap.emerald;
+        if (raw.includes('sky') || raw.includes('cyan') || raw.includes('blue')) return tailwindMap.sky;
+        if (raw.includes('yellow') || raw.includes('gold') || raw.includes('amber')) return tailwindMap.amber;
+
+        return tailwindMap.emerald;
+      }
+
+      // Loop through all parsed sections to build dynamic cards
+      sections.forEach((sec, idx) => {
+        const secAccentKey = sec.accent || plan.theme || 'blue';
+        const themeStyle = resolveDynamicThemeStyle(secAccentKey);
+
+        const rawSecTitle = sec.title || sec.heading || `Section ${idx + 1}`;
+        const cleanSecTitle = rawSecTitle.replace(/^\d+[\.\)]\s*/, '');
+        const numberedTitle = `${idx + 1}. ${cleanSecTitle}`;
+
+        const spanClass = getCardSpanClass(sec);
+        const imgUrl = sec.image || sec.image_url || sec.cross_section_image_url || sec.organ_image_url || '';
+
+        let organType = (sec.organ_type || docOrganType || '').toLowerCase();
+        const secTitleLower = rawSecTitle.toLowerCase();
+        const isNonPathway = /stage|phase|cause|diagnostic|nursing|intervention|medication|drug|complication|overview/i.test(secTitleLower);
+        const isPathwaySection = !isNonPathway && (sec.type === 'flowchart' || sec.section_type === 'flowchart' || /patho|pathway|flowchart|process|mechanism/i.test(secTitleLower));
+        const isMedicationSection = /medication|meds|pharmacolog|treatment|drug|prescription|\brx\b/i.test(secTitleLower) || /medication|meds|pharmacolog|treatment|drug|prescription|\brx\b/i.test(sec.type || '');
+        const isAnatomySection = sec.isAnatomyCard || /anatomy|structure/i.test(secTitleLower);
+        const isOverviewSection = /overview|definition/i.test(secTitleLower);
+        const isVesselsSection = /vessel|vascular|artery|vein/i.test(secTitleLower);
+
+        html += `
+          <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5 flex flex-col gap-3 hover:shadow-md transition ${spanClass}">
+            <div class="flex justify-between items-center pb-2 border-b border-slate-100">
+              <div class="flex items-center gap-2">
+                <span class="text-slate-400 text-sm cursor-grab">⠿</span>
+                <span class="font-extrabold text-base ${themeStyle.title} tracking-tight">${esc(numberedTitle)}</span>
+              </div>
+              <div class="flex items-center gap-1">
+                <button class="vnote-action-btn hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded p-1 text-xs transition" title="Edit Card">✏️</button>
+                <button class="vnote-action-btn hover:bg-red-50 text-slate-400 hover:text-red-600 rounded p-1 text-xs transition" title="Delete Card">🗑️</button>
+              </div>
+            </div>
+        `;
+
+        // Pathway Card Layout (Horizontal Step-by-Step Flowchart)
+        if (isPathwaySection) {
+          const flowList = (sec.flows && Array.isArray(sec.flows) && sec.flows.length > 0) ? sec.flows : [null];
+
+          flowList.forEach((fObj, flowIdx) => {
+            let rawSteps = [];
+            let flowLabel = fObj ? (fObj.label || 'PATHWAY') : 'PATHOPHYSIOLOGY PATHWAY';
+
+            if (fObj) {
+              if (fObj.steps && Array.isArray(fObj.steps) && fObj.steps.length > 0) {
+                rawSteps = fObj.steps;
+              } else if (Array.isArray(fObj) && fObj.length > 0) {
+                rawSteps = fObj;
+              }
+            }
+
+            if (!rawSteps.length && sec.steps && Array.isArray(sec.steps) && sec.steps.length > 0) {
+              rawSteps = sec.steps;
+            }
+
+            // Extract from items or content if flows is empty or single generic block
+            if (!rawSteps.length || (rawSteps.length === 1 && typeof rawSteps[0] === 'object' && ((rawSteps[0].text || '').length > 30 || (rawSteps[0].label || '').toLowerCase() === 'patho'))) {
+              let candidateList = [];
+              if (sec.items && Array.isArray(sec.items) && sec.items.length > 0) {
+                sec.items.forEach(it => {
+                  const lbl = (it.label || it.tag || it.name || '').trim();
+                  const txt = (it.text || it.desc || '').trim();
+                  const fullStr = (lbl && txt && lbl.toLowerCase() !== txt.toLowerCase()) ? `${lbl}: ${txt}` : (txt || lbl);
+                  const sentences = fullStr.split(/(?<=[.!?])\s+|[\n;→]|\s*->\s*/).map(s => s.trim()).filter(s => s.length > 3);
+                  if (sentences.length > 1) {
+                    candidateList.push(...sentences);
+                  } else if (fullStr) {
+                    candidateList.push(fullStr);
+                  }
+                });
+              }
+
+              if (!candidateList.length && sec.bullets && Array.isArray(sec.bullets) && sec.bullets.length > 0) {
+                sec.bullets.forEach(b => {
+                  if (typeof b === 'string') {
+                    const sentences = b.split(/(?<=[.!?])\s+|[\n;→]|\s*->\s*/).map(s => s.trim()).filter(s => s.length > 3);
+                    if (sentences.length > 1) candidateList.push(...sentences);
+                    else if (b.trim()) candidateList.push(b.trim());
+                  } else if (b) {
+                    candidateList.push(b);
+                  }
+                });
+              }
+
+              if (!candidateList.length && sec.content) {
+                candidateList = sec.content.split(/(?<=[.!?])\s+|[\n;→]|\s*->\s*/).map(s => s.trim()).filter(s => s.length > 3);
+              }
+
+              if (candidateList.length > 0) {
+                rawSteps = candidateList;
+              }
+            }
+
+            const parsedSteps = rawSteps.map((st, idx) => {
+              if (typeof st === 'string') {
+                const cleanSt = st.replace(/^[•\-\*\d\.\)]\s*/, '').trim();
+                const parts = cleanSt.split(/:|\s+[–—\-]\s+|[–—]/, 2);
+                if (parts.length === 2 && parts[0].trim().length < 35 && parts[1].trim().length > 2) {
+                  return { name: parts[0].trim().toUpperCase(), subtext: parts[1].trim() };
+                }
+                let stepTitle = `STEP ${idx + 1}`;
+                if (cleanSt.length <= 35) {
+                  stepTitle = cleanSt.toUpperCase();
+                } else {
+                  const words = cleanSt.split(' ');
+                  stepTitle = words.length >= 3 ? words.slice(0, 3).join(' ').toUpperCase() : cleanSt.toUpperCase();
+                }
+                return { name: stepTitle, subtext: cleanSt };
+              }
+
+              if (typeof st === 'object' && st !== null) {
+                let name = (st.name || st.label || st.step || st.title || '').trim();
+                let subtext = (st.subtext || st.text || st.desc || '').trim();
+
+                if (!name || name.toLowerCase() === 'overview' || name.toLowerCase() === 'patho' || name.toLowerCase() === 'key point') {
+                  if (subtext) {
+                    const parts = subtext.split(/:|\s+[–—\-]\s+|[–—]/, 2);
+                    if (parts.length === 2 && parts[0].trim().length < 35 && parts[1].trim().length > 2) {
+                      name = parts[0].trim().toUpperCase();
+                      subtext = parts[1].trim();
+                    } else {
+                      const words = subtext.split(' ');
+                      name = words.slice(0, 3).join(' ').toUpperCase();
+                    }
+                  } else {
+                    name = `STEP ${idx + 1}`;
+                  }
+                }
+
+                return { name: name.toUpperCase(), subtext: subtext || name };
+              }
+
+              return { name: `STEP ${idx + 1}`, subtext: String(st) };
+            }).filter(s => s.name || s.subtext);
+
+            const steps = parsedSteps.length ? parsedSteps : [
+              { name: "STEP 1", subtext: "Pathway initiation and blood flow sequence." },
+              { name: "STEP 2", subtext: "Intermediate anatomical conduit." },
+              { name: "STEP 3", subtext: "Terminal organ perfusion and exchange." }
+            ];
+
+            html += `
+              <div class="flex flex-col gap-3 w-full ${flowIdx > 0 ? 'mt-4 pt-4 border-t border-slate-100' : 'my-1'}">
+                ${flowLabel ? `<div class="text-xs font-bold text-slate-500 uppercase tracking-wider">${esc(flowLabel)}</div>` : ''}
+                <div class="flex flex-wrap items-center justify-start sm:justify-center gap-2 sm:gap-3 p-3 sm:p-4 bg-slate-50/70 rounded-xl border border-slate-200/80 w-full">
+                  ${steps.map((st, sIdx) => {
+              const stName = st.name;
+              const hasMeaningfulSub = st.subtext && st.subtext.trim().toLowerCase() !== st.name.trim().toLowerCase();
+              const stSub = hasMeaningfulSub ? st.subtext.trim() : '';
+              const stepStyle = themeStyle.stepBg[sIdx % themeStyle.stepBg.length];
+
+              return `
+                <div class="flex items-center gap-1.5 sm:gap-2.5 flex-1 min-w-[120px] sm:min-w-[140px] max-w-full">
+                  <div class="${stepStyle} border rounded-xl p-2.5 sm:p-3 text-center flex-1 flex flex-col items-center justify-center gap-1 shadow-xs transition hover:shadow-md hover:-translate-y-0.5 min-h-[72px]">
+                    <div class="w-7 h-7 rounded-full bg-white/90 shadow-xs flex items-center justify-center text-xs flex-shrink-0 font-bold text-blue-700">${pathwayStepIcon}</div>
+                    <div class="text-xs font-extrabold leading-snug break-words w-full tracking-tight">${renderRichHTML(stName)}</div>
+                    ${stSub ? `<div class="text-[10.5px] text-slate-600 font-medium leading-tight mt-0.5 break-words w-full">${renderRichHTML(stSub)}</div>` : ''}
+                  </div>
+                  ${sIdx < steps.length - 1 ? `<div class="text-base sm:text-lg font-extrabold text-blue-400 flex items-center justify-center flex-shrink-0 px-0.5">→</div>` : ''}
+                </div>
+              `;
+            }).join('')}
+                </div>
+              </div>
+            `;
+          });
+        } else {
+          // Standard Section Card (Text on Left, Image on Right)
+          html += `<div class="flex flex-col md:flex-row gap-4 items-start justify-between w-full mt-1">`;
+          html += `<div class="flex-1 w-full">`;
+
+          if (sec.items && sec.items.length) {
+            const subGroups = [];
+            let activeGroup = null;
+
+            sec.items.forEach(it => {
+              const label = (it.label || it.tag || it.name || '').trim();
+              const text = (it.text || it.function || it.desc || '').trim();
+
+              if (label && !text) {
+                activeGroup = { subTitle: label, items: [] };
+                subGroups.push(activeGroup);
+              } else if (label && text) {
+                if (!activeGroup || activeGroup.subTitle.toLowerCase() !== label.toLowerCase()) {
+                  let matchGroup = subGroups.find(g => g.subTitle && g.subTitle.toLowerCase() === label.toLowerCase());
+                  if (!matchGroup) {
+                    matchGroup = { subTitle: label, items: [] };
+                    subGroups.push(matchGroup);
+                  }
+                  activeGroup = matchGroup;
+                }
+                activeGroup.items.push(text);
+              } else if (text) {
+                if (!activeGroup) {
+                  activeGroup = { subTitle: "", items: [] };
+                  subGroups.push(activeGroup);
+                }
+                activeGroup.items.push(text);
+              }
+            });
+
+            const validGroups = subGroups.filter(g => g.subTitle || g.items.length);
+
+            html += `<div class="flex flex-col gap-3">`;
+            validGroups.forEach(grp => {
+              if (grp.subTitle) {
+                const cleanBadgeLabel = esc(String(grp.subTitle).replace(/<[^>]+>/g, '').trim());
+                html += `<div class="text-[11px] font-extrabold ${themeStyle.badge} px-2.5 py-0.5 rounded-md inline-block self-start uppercase tracking-wider">${cleanBadgeLabel}</div>`;
+              }
+              if (grp.items.length) {
+                html += `<div class="flex flex-col gap-1.5 pl-0.5">`;
+                grp.items.forEach(itemText => {
+                  html += `
+                    <div class="flex items-start gap-2 text-xs text-slate-700 leading-normal">
+                      <span class="${themeStyle.check} font-bold text-sm leading-none flex-shrink-0 mt-0.5">✓</span>
+                      <span class="flex-1">${renderRichHTML(itemText)}</span>
+                    </div>
+                  `;
+                });
+                html += `</div>`;
+              }
+            });
+            html += `</div>`;
+          } else if (sec.bullets && sec.bullets.length) {
+            html += `<div class="flex flex-col gap-1.5">`;
+            sec.bullets.forEach(b => {
+              html += `
+                <div class="flex items-start gap-2 text-xs text-slate-700 leading-normal">
+                  <span class="${themeStyle.check} font-bold text-sm leading-none flex-shrink-0 mt-0.5">✓</span>
+                  <span>${renderRichHTML(b)}</span>
+                </div>
+              `;
+            });
+            html += `</div>`;
+          } else if (sec.content) {
+            html += `<p class="text-xs text-slate-600 leading-relaxed">${renderRichHTML(sec.content).replace(/\n/g, '<br>')}</p>`;
+          }
+          html += `</div>`; // End Left Text Column
+
+          // Image Column Resolution
+          const anatomyCrossSectionMap = {
+            heart: "/assets/generated/heart_cross_section.png",
+            lungs: "/assets/generated/lungs_cross_section.png",
+            kidney: "/assets/generated/kidney_cross_section.png",
+            liver: "/assets/generated/liver_cross_section.png",
+            brain: "/assets/generated/brain_cross_section.png",
+            stomach: "/assets/stomach_3d_organ.png",
+            vessels: "/assets/vessels_3d_cutaway.png"
+          };
+
+          const organ3DAssetMap = {
+            heart: "/assets/heart_3d_organ.png",
+            lungs: "/assets/lungs_3d_organ.png",
+            kidney: "/assets/kidney_3d_organ.png",
+            liver: "/assets/liver_3d_organ.png",
+            brain: "/assets/brain_3d_organ.png",
+            stomach: "/assets/stomach_3d_organ.png",
+            vessels: "/assets/vessels_3d_cutaway.png"
+          };
+
+          let resolvedImg = '';
+          if (imgUrl) {
+            resolvedImg = imgUrl;
+          } else if (isMedicationSection) {
+            resolvedImg = "/assets/medication.jpg";
+          } else if (isAnatomySection) {
+            resolvedImg = anatomyCrossSectionMap[organType] || anatomyCrossSectionMap[docOrganType] || '/assets/generated/heart_cross_section.png';
+          } else if (isOverviewSection) {
+            resolvedImg = organ3DAssetMap[organType] || organ3DAssetMap[docOrganType] || '/assets/heart_3d_organ.png';
+          } else if (isVesselsSection) {
+            resolvedImg = "/assets/vessels_3d_cutaway.png";
+          }
+
+          if (resolvedImg) {
+            html += `
+              <div class="w-full md:w-36 h-36 flex-shrink-0 rounded-2xl overflow-hidden bg-slate-50 border border-slate-100 flex items-center justify-center p-2 shadow-xs self-center md:self-start">
+                <img src="${esc(resolvedImg)}" alt="${esc(cleanSecTitle)}" class="w-full h-full object-contain" onerror="this.onerror=null; this.parentElement.style.display='none';" />
+              </div>
+            `;
+          }
+          html += `</div>`; // End Flex Row
+        }
+
+        html += `</div>`; // End Card
+      });
+
+      html += `</div>`; // End Grid Container
+
+      // Bottom Panels (Clinical Tip & Remember with Nurse and Brain Avatars)
+      const tip = bp.clinical_tip || { title: "Clinical Tip", text: "Assess for <span style='color:red; font-weight:bold;'>Murphy's Sign</span> to evaluate for kidney-related pain." };
+      const remember = bp.remember_mnemonic || { title: "Remember", text: "Use '<span style='color:red; font-weight:bold;'>KIDNEY</span>' to recall key functions: Keep electrolytes balanced, Identify waste, Deliver blood, Nourish RBCs, Excrete urine, Yield homeostasis." };
+
+      html += `
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+          <div class="bg-purple-50/70 border border-purple-200/80 rounded-2xl p-5 flex justify-between items-center gap-4 shadow-xs hover:shadow-sm transition">
+            <div class="flex-1">
+              <h4 class="text-sm font-extrabold text-purple-900 mb-1.5 flex items-center gap-1.5">
+                ${esc(tip.title || "Clinical Tip")} <span class="text-orange-500 text-xs">✏️</span>
+              </h4>
+              <p class="text-xs text-slate-600 leading-relaxed font-medium">${renderRichHTML(tip.text).replace(/\n/g, '<br>')}</p>
+            </div>
+            ${getNurseAvatarHTML()}
+          </div>
+          <div class="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-5 flex justify-between items-center gap-4 shadow-xs hover:shadow-sm transition">
+            <div class="flex-1">
+              <h4 class="text-sm font-extrabold text-emerald-900 mb-1.5 flex items-center gap-1.5">
+                ${esc(remember.title || "Remember")} <span class="text-orange-500 text-xs">✏️</span>
+              </h4>
+              <p class="text-xs text-slate-600 leading-relaxed font-medium">${renderRichHTML(remember.text).replace(/\n/g, '<br>')}</p>
+            </div>
+            ${getBrainAvatarHTML()}
+          </div>
+        </div>
+      `;
+
+      html += `</div>`; // End Dashboard Container
+      return html;
+    }
+
+
+
+    // --- Download & Text Editor Actions ---
+    const textEditor = document.getElementById('original-text-content');
+    const btnGenTextElem = document.getElementById('btn-generate-text');
+
+    if (textEditor) {
+      textEditor.addEventListener('input', () => {
+        currentPlan.original_text = textEditor.value;
+        updateDownloadButtonsState();
+      });
+    }
+
+    if (btnGenTextElem) {
+      btnGenTextElem.addEventListener('click', async () => {
+        const manualText = textEditor ? textEditor.value.trim() : "";
+        if (!manualText) {
+          showStatus('Please type or paste some text first.', 'error');
+          return;
+        }
+
+        let derivedTitle = "Manual_Lecture_Notes.txt";
+        const firstLine = manualText.split('\n')[0].replace(/^[#*•\-\s]+/, '').trim();
+        if (firstLine && firstLine.length > 2 && firstLine.length < 60) {
+          derivedTitle = firstLine.replace(/[^a-zA-Z0-9_\-\s]/g, '').trim().replace(/\s+/g, '_') + '.txt';
+        }
+
+        showStatus('Generating visual notes from your text...', 'info');
+        currentPlan.original_text = manualText;
+
+        try {
+          const response = await apiFetch('/api/v1/lecture-notes/from-text', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: derivedTitle,
+              text: manualText
+            })
+          });
+
+          if (!response.ok) throw new Error('API request failed');
+          const newPlan = await response.json();
+          newPlan.filename = derivedTitle;
+          render(newPlan, { name: derivedTitle, size: manualText.length });
+          showStatus('Generated visual notes from text!', 'info');
+
+          // Switch to Visual Notes tab
+          const visualTab = document.querySelector('.tab[data-tab="visual"]');
+          if (visualTab) visualTab.click();
+
+        } catch (err) {
+          console.warn('API Endpoint failed. Running local visual notes generation simulation:', err);
+          const simulatedPlan = JSON.parse(JSON.stringify(currentPlan));
+          simulatedPlan.filename = derivedTitle;
+          simulatedPlan.topic = derivedTitle.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
+          simulatedPlan.original_text = manualText;
+          render(simulatedPlan, { name: derivedTitle, size: manualText.length });
+          showStatus('Updated visual notes from text.', 'info');
+          const visualTab = document.querySelector('.tab[data-tab="visual"]');
+          if (visualTab) visualTab.click();
+        }
+      });
+    }
+
+    const btnDownloadOriginal = document.getElementById('btn-download-original');
+    if (btnDownloadOriginal) {
+      btnDownloadOriginal.addEventListener('click', () => {
+        const textToDownload = textEditor ? textEditor.value.trim() : "";
+        if (!textToDownload) {
+          showStatus('No document content available to download. Please upload a document first.', 'error');
+          return;
+        }
+
+        const rawFileName = (currentPlan && currentPlan.filename) ? currentPlan.filename : "uploaded_document.txt";
+        const baseName = rawFileName.replace(/\.[^/.]+$/, "");
+        const downloadName = `${baseName}_original_extracted.txt`;
+
+        const blob = new Blob([textToDownload], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = downloadName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
+    }
+
+    const btnDownloadVisual = document.getElementById('btn-download-visual');
+    if (btnDownloadVisual) {
+      btnDownloadVisual.addEventListener('click', () => {
+        const textToDownload = textEditor ? textEditor.value.trim() : "";
+        if (!textToDownload) {
+          showStatus('No document visual notes available to download. Please upload a document first.', 'error');
+          return;
+        }
+
+        const rawFileName = (currentPlan && currentPlan.filename) ? currentPlan.filename : "uploaded_document.json";
+        const baseName = rawFileName.replace(/\.[^/.]+$/, "");
+        const downloadName = `${baseName}_visual_study_sheet.json`;
+
+        const blob = new Blob([JSON.stringify(currentPlan, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = downloadName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
+    }
+
+    // --- AI Edit Prompt Interaction ---
+    const promptInput = document.getElementById('prompt-input');
+    const promptForm = document.getElementById('prompt-form');
+    const chatLog = document.getElementById('chat-log');
+
+    // Clickable Suggestion Chips: Populates text box for user review before send
+    document.querySelectorAll('.chip-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const promptText = btn.dataset.prompt;
+        if (!promptText) return;
+        promptInput.value = promptText;
+        promptInput.focus();
+      });
+    });
+
+    promptForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const userText = promptInput.value.trim();
+      if (!userText) return;
+
+      submitPrompt(userText);
+      promptInput.value = '';
+    });
+
+    async function submitPrompt(instructionText) {
+      const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      // 1. Append User Bubble immediately
+      const userMsgHTML = `
+        <div class="msg-user-wrapper">
+          <div class="msg-user-bubble">${esc(instructionText)}</div>
+          <span class="msg-meta">You • ${nowTime}</span>
+        </div>
+      `;
+      chatLog.insertAdjacentHTML('beforeend', userMsgHTML);
+
+      // 2. Append AI Status Spinner ("Updating your notes...")
+      const statusId = 'status-' + Date.now();
+      const aiStatusHTML = `
+        <div class="msg-ai-wrapper" id="${statusId}">
+          <div class="msg-ai-status">
+            <span class="spinner-icon"></span>
+            <span>Updating your notes...</span>
+          </div>
+          <span class="msg-meta">AI • ${nowTime}</span>
+        </div>
+      `;
+      chatLog.insertAdjacentHTML('beforeend', aiStatusHTML);
+      chatLog.scrollTop = chatLog.scrollHeight;
+
+      const startTime = Date.now();
+      const MIN_DELAY_MS = 3500; // Realistic 3.5 second processing delay
+
+      let updatedData = null;
+      try {
+        const response = await apiFetch(`/api/v1/lecture-notes/${encodeURIComponent((currentPlan && currentPlan.id) ? currentPlan.id : 'default')}/edit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            plan: currentPlan,
+            instruction: instructionText
+          })
+        });
+
+        if (response.ok) {
+          updatedData = await response.json();
+        }
+      } catch (err) {
+        console.warn('API call failed. Executing local AI mutation simulation:', err);
+      }
+
+      // Calculate remaining delay to guarantee smooth 3.5s loading experience
+      const elapsedTime = Date.now() - startTime;
+      const remainingDelay = Math.max(0, MIN_DELAY_MS - elapsedTime);
+
+      setTimeout(() => {
+        // Remove status spinner
+        const statusElem = document.getElementById(statusId);
+        if (statusElem) statusElem.remove();
+
+        // Append AI confirmation bubble
+        const aiConfirmHTML = `
+          <div class="msg-ai-wrapper">
+            <div class="msg-ai-bubble">
+              <span class="dot-green"></span>
+              Here is your updated visual note!
+            </div>
+            <span class="msg-meta">AI • ${nowTime}</span>
+          </div>
+        `;
+        chatLog.insertAdjacentHTML('beforeend', aiConfirmHTML);
+        chatLog.scrollTop = chatLog.scrollHeight;
+
+        if (updatedData) {
+          currentPlan = updatedData;
+          render(updatedData);
+        } else {
+          // Local fallback mutation
+          const updatedPlan = JSON.parse(JSON.stringify(currentPlan));
+          const textLower = instructionText.toLowerCase();
+
+          if (textLower.includes('concise') || textLower.includes('short') || textLower.includes('brief') || textLower.includes('summarize')) {
+            const listToProcess = (updatedPlan.sections && updatedPlan.sections.length) ? updatedPlan.sections : (updatedPlan.cards || []);
+            listToProcess.forEach(sec => {
+              if (sec && typeof sec === 'object') {
+                if (Array.isArray(sec.items)) {
+                  sec.items = sec.items.slice(0, 4);
+                  sec.items.forEach(it => {
+                    if (it && it.text) {
+                      const s = String(it.text).split(/\.\s+/)[0].trim();
+                      it.text = s ? (s.endsWith('.') ? s : s + '.') : it.text;
+                    }
+                  });
+                }
+                if (Array.isArray(sec.bullets)) {
+                  sec.bullets = sec.bullets.slice(0, 4).map(b => {
+                    if (typeof b === 'string') {
+                      const s = b.split(/\.\s+/)[0].trim();
+                      return s ? (s.endsWith('.') ? s : s + '.') : b;
+                    }
+                    return b;
+                  });
+                }
+                if (Array.isArray(sec.flows)) {
+                  sec.flows = sec.flows.slice(0, 4);
+                }
+              }
+            });
+          } else if (textLower.includes('simplify') || textLower.includes('first year') || textLower.includes('student') || textLower.includes('easy')) {
+            const listToProcess = (updatedPlan.sections && updatedPlan.sections.length) ? updatedPlan.sections : (updatedPlan.cards || []);
+            listToProcess.forEach(sec => {
+              if (sec && typeof sec === 'object') {
+                sec.accent = "sky";
+                if (Array.isArray(sec.items)) {
+                  sec.items.forEach(it => {
+                    if (it && it.text) {
+                      it.text = String(it.text).replace(/dyspnea/gi, 'shortness of breath (dyspnea)').replace(/hypoxemia/gi, 'low blood oxygen levels (hypoxemia)').replace(/edema/gi, 'fluid swelling (edema)').replace(/atelectasis/gi, 'air sac collapse (atelectasis)');
+                    }
+                  });
+                }
+              }
+            });
+          } else if (textLower.includes('red') || textLower.includes('highlight')) {
+            if (updatedPlan.sections && Array.isArray(updatedPlan.sections)) {
+              updatedPlan.sections.forEach(sec => {
+                if (sec.items && Array.isArray(sec.items)) {
+                  sec.items.forEach(it => {
+                    if (it.label && !it.label.includes('<span')) {
+                      it.label = `<span style="color:#dc2626; font-weight:bold;">${it.label}</span>`;
+                    }
+                  });
+                }
+              });
+            }
+          } else if (textLower.includes('pastel') || textLower.includes('soft color') || textLower.includes('color theme') || textLower.includes('green') || textLower.includes('theme')) {
+            let targetColor = "emerald";
+            if (textLower.includes('blue') || textLower.includes('sky')) targetColor = "sky";
+            else if (textLower.includes('purple') || textLower.includes('violet') || textLower.includes('lavender')) targetColor = "purple";
+            else if (textLower.includes('pink') || textLower.includes('rose')) targetColor = "pink";
+            else if (textLower.includes('green') || textLower.includes('mint') || textLower.includes('emerald') || textLower.includes('pastel')) targetColor = "emerald";
+
+            updatedPlan.theme = targetColor;
+            if (updatedPlan.sections && Array.isArray(updatedPlan.sections)) {
+              updatedPlan.sections.forEach(sec => {
+                if (sec && typeof sec === 'object') sec.accent = targetColor;
+              });
+            }
+            if (updatedPlan.cards && Array.isArray(updatedPlan.cards)) {
+              updatedPlan.cards.forEach(sec => {
+                if (sec && typeof sec === 'object') sec.accent = targetColor;
+              });
+            }
+          }
+          currentPlan = updatedPlan;
+          render(updatedPlan);
+        }
+      }, remainingDelay);
+    }
+
+    // --- Initial Load ---
+    document.addEventListener('DOMContentLoaded', () => {
+      // First-time blank state: hide headline and leave text editor blank until user uploads
+      const fileInfoRow = document.getElementById('file-info-row');
+      if (fileInfoRow) fileInfoRow.style.display = 'none';
+
+      const textContentElem = document.getElementById('original-text-content');
+      if (textContentElem) {
+        textContentElem.value = "";
+        textContentElem.placeholder = "Type, paste, or edit your lecture notes here...";
+      }
+
+      const visualContainer = document.getElementById('visual-notes-container');
+      if (visualContainer) {
+        visualContainer.innerHTML = `
+          <div style="text-align:center; padding:60px 20px; color:#64748b;">
+            <div style="font-size:36px; margin-bottom:12px;">📚</div>
+            <h3 style="font-size:16px; font-weight:700; color:#1e293b; margin-bottom:6px;">No Lecture Notes Generated Yet</h3>
+            <p style="font-size:13px; max-width:420px; margin:0 auto; line-height:1.5;">Upload a document (PDF, DOCX, PPTX, Image) or paste your lecture notes to generate your NCLEX visual study sheet.</p>
+          </div>
+        `;
+      }
+
+      const editPreviewContainer = document.getElementById('edit-preview-container');
+      if (editPreviewContainer) {
+        editPreviewContainer.innerHTML = `
+          <div style="text-align:center; padding:60px 20px; color:#64748b;">
+            <div style="font-size:36px; margin-bottom:12px;">✏️</div>
+            <h3 style="font-size:16px; font-weight:700; color:#1e293b; margin-bottom:6px;">No Visual Sheet Ready to Edit</h3>
+            <p style="font-size:13px; max-width:420px; margin:0 auto; line-height:1.5;">Once you upload a document, you can chat with AI here to edit color schemes, add sections, or customize layout.</p>
+          </div>
+        `;
+      }
+
+      // Initialize upload and drag-and-drop event listeners
+      initFileUploadAndDragDrop();
+
+      // Initialize download buttons in disabled state for initial blank load
+      updateDownloadButtonsState();
+    });
+    initFileUploadAndDragDrop();
+  </script>
+
+  <!-- Realistic Diagram Lightbox Zoom Modal -->
+  <div class="lightbox-modal" id="diagram-lightbox-modal" onclick="if(event.target === this) closeDiagramLightbox()">
+    <div class="lightbox-content">
+      <div class="lightbox-header">
+        <div class="lightbox-title" id="lightbox-title">Realistic Anatomical Diagram</div>
+        <button class="lightbox-close" onclick="closeDiagramLightbox()">✕</button>
+      </div>
+      <div class="lightbox-body" id="lightbox-body">
+        <img id="lightbox-img" src="" alt="Realistic Medical Diagram Zoom View" />
+      </div>
+    </div>
+  </div>
+</body>
+
+</html>
