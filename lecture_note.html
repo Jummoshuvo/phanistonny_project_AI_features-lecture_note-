@@ -1385,7 +1385,45 @@
       return '<div class="text-xs text-slate-400 italic p-2 text-center">Organ Asset</div>';
     }
 
-    // --- Render Formatted Original Study Sheet HTML (1:1 synced with cards) ---
+    async function generateVisualNotesFromOriginal() {
+      if (!currentPlan) {
+        showStatus("Please upload a document first.", "error");
+        return;
+      }
+      showStatus("⚡ Processing 3D visual cards & diagram assets...", "info");
+
+      const docName = activeUploadedFileName || (currentPlan && currentPlan.filename) || "Uploaded_Notes.pdf";
+
+      try {
+        const response = await apiFetch('/api/v1/generate-visual-notes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            original_note: currentPlan,
+            filename: docName,
+            text: currentPlan.original_text || ""
+          })
+        });
+
+        if (response && response.ok) {
+          const visualPlan = await response.json();
+          visualPlan.filename = docName;
+          render(visualPlan, { name: docName });
+          showStatus("✨ Visual study sheet generated! Displaying 3D cards...", "success");
+          const visualTabBtn = document.querySelector('.tab[data-tab="visual"]');
+          if (visualTabBtn) visualTabBtn.click();
+          return;
+        }
+      } catch (err) {
+        console.warn("Visual Notes API generation error, running client fallback:", err);
+      }
+
+      render(currentPlan, { name: docName });
+      showStatus("✨ Visual study sheet ready!", "success");
+      const visualTabBtn = document.querySelector('.tab[data-tab="visual"]');
+      if (visualTabBtn) visualTabBtn.click();
+    }
+
     function renderFormattedOriginalTextHTML(text, sections = null) {
       if ((!text || !text.trim()) && (!sections || !sections.length)) {
         return '<div class="text-slate-400 italic p-6 text-center">No study notes uploaded yet. Upload a document or type raw notes to generate.</div>';
@@ -1416,66 +1454,76 @@
             sec.bullets.forEach(b => {
               allPointsToRender.push({ label: "", text: b });
             });
+          } else if (sec.content) {
+            if (Array.isArray(sec.content)) {
+              sec.content.forEach(c => allPointsToRender.push({ label: "", text: String(c) }));
+            } else {
+              allPointsToRender.push({ label: "", text: String(sec.content) });
+            }
+          }
+
+          // Step Flowchart for Pathophysiology
+          if (sec.flow || sec.flows) {
+            const flowList = sec.flow || (sec.flows && sec.flows[0] ? sec.flows[0].steps : null);
+            if (flowList && Array.isArray(flowList) && flowList.length) {
+              html += `<div class="bg-slate-50 border border-slate-200 rounded-xl p-4 my-2">`;
+              html += `<div class="text-[11px] font-extrabold text-slate-600 uppercase tracking-wider mb-2">Step-by-Step Flow:</div>`;
+              html += `<div class="flex flex-wrap items-center gap-2">`;
+              flowList.forEach((st, sIdx) => {
+                const stTitle = typeof st === 'object' ? (st.title || st.name || `Step ${sIdx + 1}`) : String(st);
+                const stDesc = typeof st === 'object' ? (st.description || st.subtext || '') : '';
+                html += `
+                  <div class="bg-white border border-slate-300 rounded-lg p-2.5 flex-1 min-w-[130px] shadow-2xs">
+                    <div class="text-[11px] font-extrabold text-blue-900 uppercase">${esc(stTitle)}</div>
+                    ${stDesc ? `<div class="text-[10.5px] text-slate-600 font-medium leading-tight mt-0.5">${esc(stDesc)}</div>` : ''}
+                  </div>
+                  ${sIdx < flowList.length - 1 ? `<span class="text-blue-500 font-extrabold">→</span>` : ''}
+                `;
+              });
+              html += `</div></div>`;
+            }
           }
 
           if (allPointsToRender.length) {
-            const subGroups = [];
-            let activeGroup = null;
-
+            html += '<ul class="doc-bullet-list my-1.5 space-y-1.5 list-none pl-1">';
             allPointsToRender.forEach(pt => {
-              const lbl = pt.label ? pt.label.trim() : '';
-              const val = pt.text ? pt.text.trim() : '';
+              let lbl = pt.label ? pt.label.trim() : '';
+              let val = pt.text ? pt.text.trim() : '';
 
-              if (lbl && !val) {
-                activeGroup = { subTitle: lbl, items: [] };
-                subGroups.push(activeGroup);
-              } else if (lbl && val) {
-                if (!activeGroup || activeGroup.subTitle.toLowerCase() !== lbl.toLowerCase()) {
-                  let matchGroup = subGroups.find(g => g.subTitle && g.subTitle.toLowerCase() === lbl.toLowerCase());
-                  if (!matchGroup) {
-                    matchGroup = { subTitle: lbl, items: [] };
-                    subGroups.push(matchGroup);
-                  }
-                  activeGroup = matchGroup;
-                }
-                activeGroup.items.push(val);
-              } else if (val) {
-                if (!activeGroup) {
-                  activeGroup = { subTitle: "", items: [] };
-                  subGroups.push(activeGroup);
-                }
-                activeGroup.items.push(val);
+              // Clean journal volume tags & title prefixes from label and value
+              lbl = lbl.replace(/AJPHI\s*[|I]\s*VOLUME\s*\d+\s*[|I]\s*\d{4}/gi, '')
+                .replace(/CORONARY\s+ARTERY\s+DISEASE\s+CAD\s+DEMYSTIFIED\s+CAUSES\s+[A-Z0-9\s_\-]*OVERVIEW/gi, '')
+                .replace(/^[A-Z0-9\s_\-]{10,80}\s*OVERVIEW\s*:\s*/gi, '')
+                .trim();
+
+              if (lbl.length > 35 || /journal|article|volume|overview/i.test(lbl) || lbl.toUpperCase() === cleanTitle.toUpperCase() || cleanTitle.toUpperCase().includes(lbl.toUpperCase())) {
+                lbl = "";
               }
-            });
 
-            const validGroups = subGroups.filter(g => g.subTitle || g.items.length);
+              val = val.replace(/AJPHI\s*[|I]\s*VOLUME\s*\d+\s*[|I]\s*\d{4}/gi, '')
+                .replace(/The\s+American\s+Journal\s+of\s+Patient\s+Health\s+Info\s*:\s*\d{4}/gi, '')
+                .replace(/CORONARY\s+ARTERY\s+DISEASE\s+CAD\s+DEMYSTIFIED\s+CAUSES\s+[A-Z0-9\s_\-]*OVERVIEW\s*:\s*/gi, '')
+                .replace(/^[A-Z0-9\s_\-]{10,80}\s*OVERVIEW\s*:\s*/gi, '')
+                .trim();
 
-            validGroups.forEach(grp => {
-              if (grp.subTitle) {
-                html += `<div class="doc-subsection-header text-xs font-bold text-slate-900 bg-slate-100/90 border border-slate-200 px-3 py-1 rounded-md inline-block mt-3 mb-1.5 uppercase tracking-wide"><span class="text-blue-600 font-black mr-1.5">▪</span>${esc(grp.subTitle)}</div>`;
+              if (!val && lbl) { val = lbl; lbl = ""; }
+
+              const words = val.split(/\s+/);
+              if (words.length > 45) {
+                val = words.slice(0, 45).join(' ').replace(/[,;:-]+$/, '') + '.';
               }
-              if (grp.items.length) {
-                html += '<ul class="doc-bullet-list my-1.5 space-y-1.5 list-none pl-1">';
-                grp.items.forEach(itemText => {
-                  html += `<li class="doc-bullet-item text-sm text-slate-800 flex items-start gap-2 py-0.5"><span class="text-blue-600 font-bold text-base leading-none select-none">•</span><div class="flex-1">${renderRichHTML(itemText)}</div></li>`;
-                });
-                html += '</ul>';
-              }
-            });
-          } else if (sec.content) {
-            const paragraphs = sec.content.split('\n').filter(Boolean);
-            paragraphs.forEach(p => {
-              html += `<p class="doc-paragraph-text text-sm text-slate-700 mb-2">${renderRichHTML(p)}</p>`;
-            });
-          }
 
-          if (sec.callouts && sec.callouts.length) {
-            sec.callouts.forEach(callout => {
-              html += `<div class="bg-amber-50 border border-amber-200/90 rounded-lg p-3 mt-3 text-amber-900 text-xs font-semibold flex items-center gap-2 shadow-2xs">`;
-              html += `  <span class="bg-amber-500 text-white text-[10px] px-2 py-0.5 rounded font-black uppercase tracking-wider">${esc(callout.title)}</span>`;
-              html += `  <span>${renderRichHTML(callout.text)}</span>`;
-              html += `</div>`;
+              html += `
+                <li class="doc-bullet-item text-xs text-slate-800 flex items-start gap-2 py-0.5 leading-relaxed">
+                  <span class="text-blue-600 font-bold text-sm leading-none flex-shrink-0 mt-0.5">•</span>
+                  <div class="flex-1">
+                    ${lbl ? `<span class="font-extrabold text-slate-900 uppercase mr-1.5">${esc(lbl)}:</span>` : ''}
+                    <span>${renderRichHTML(val)}</span>
+                  </div>
+                </li>
+              `;
             });
+            html += '</ul>';
           }
 
           html += `</div>`;
@@ -1597,14 +1645,20 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             topic: topic,
+            filename: activeUploadedFileName || (currentPlan && currentPlan.filename) || "",
             text: currentPlan ? (currentPlan.original_text || "") : ""
           })
         });
         if (response.ok) {
-          const newVis = await response.json();
-          if (currentPlan) currentPlan.main_visual = newVis;
-          render(currentPlan);
-          showStatus('Generated fresh realistic diagram image!', 'success');
+          const res = await response.json();
+          if (res.asset_url && currentPlan) {
+            currentPlan.main_visual = res;
+            if (currentPlan.sections && currentPlan.sections.length > 0) {
+              currentPlan.sections[0].image = res.asset_url;
+            }
+            render(currentPlan);
+          }
+          showStatus(res.generated ? 'Generated fresh realistic diagram image!' : 'Resolved existing visual asset!', 'success');
           return;
         }
       } catch (e) {
@@ -1652,6 +1706,9 @@
       isProcessingUploadedFile = true;
 
       try {
+        if (file && file.name) {
+          activeUploadedFileName = file.name;
+        }
         showStatus(`Uploading & generating visual notes for "${file.name}"...`, 'info');
         const dropZoneTitle = document.getElementById('drop-zone-title');
         if (dropZoneTitle) dropZoneTitle.textContent = `Processing ${file.name}...`;
@@ -1677,11 +1734,12 @@
           });
 
           if (response && response.ok) {
-            const plan = await response.json();
-            if (plan && (plan.sections || plan.cards || plan.original_text)) {
-              render(plan, file);
-              switchToVisualTab();
-              showStatus("✅ Visual study sheet generated successfully!", 'success');
+            const originalNote = await response.json();
+            if (originalNote && (originalNote.sections || originalNote.original_text)) {
+              originalNote.is_visual_generated = false;
+              render(originalNote, file);
+              switchToOriginalTab();
+              showStatus("✅ Original Note analyzed with 6-8 sections! Click 'Generate Visual Notes' when ready.", 'success');
               return;
             }
           }
@@ -1706,11 +1764,12 @@
                 original_text: pdfText,
                 sections: sections,
                 cards: sections,
-                header: { title: topicName + " Visual Notes", subtitle: "Medical & Nursing Visual Notes" }
+                is_visual_generated: false,
+                header: { title: topicName + " Original Note", subtitle: "Structured Document Analysis" }
               };
               render(fallbackPlan, file);
-              switchToVisualTab();
-              showStatus(`Loaded "${file.name}" successfully`, 'success');
+              switchToOriginalTab();
+              showStatus(`Loaded "${file.name}" successfully into Original Notes`, 'success');
               return;
             }
           } catch (pdfErr) {
@@ -1736,11 +1795,12 @@
             original_text: fileText,
             sections: sections,
             cards: sections,
-            header: { title: topicName + " Visual Notes", subtitle: "Medical & Nursing Visual Notes" }
+            is_visual_generated: false,
+            header: { title: topicName + " Original Note", subtitle: "Structured Document Analysis" }
           };
           render(fallbackPlan, file);
-          switchToVisualTab();
-          showStatus(`Loaded "${file.name}" successfully`, 'success');
+          switchToOriginalTab();
+          showStatus(`Loaded "${file.name}" successfully into Original Notes`, 'success');
         };
         reader.onerror = function () {
           showStatus(`Failed to read "${file.name}". Please try another file.`, 'error');
@@ -1756,11 +1816,12 @@
             topic: topicName,
             original_text: `--- ${file.name} ---\n1. Document Overview\nUploaded file "${file.name}" ready.`,
             sections: sections,
-            cards: sections
+            cards: sections,
+            is_visual_generated: false
           };
           render(fallbackPlan, file);
-          switchToVisualTab();
-          showStatus(`Loaded "${file.name}"`, 'success');
+          switchToOriginalTab();
+          showStatus(`Loaded "${file.name}" into Original Notes`, 'success');
         }
       } finally {
         setTimeout(() => { isProcessingUploadedFile = false; }, 1000);
@@ -1837,48 +1898,127 @@
       }
     }
 
+    // Global Active Uploaded Filename Tracker
+    let activeUploadedFileName = "";
+
     // Hook up "Generate Visual Notes" button in panel 1
     const btnGenerateText = document.getElementById('btn-generate-text');
     const rawTextareaElem = document.getElementById('original-text-content');
-    if (btnGenerateText && rawTextareaElem) {
-      btnGenerateText.addEventListener('click', async () => {
-        const text = rawTextareaElem.value || "";
-        if (!text.trim()) {
-          showStatus("Please enter or paste some lecture notes first!", "error");
+    if (btnGenerateText) {
+      btnGenerateText.addEventListener('click', () => {
+        triggerVisualNotesGeneration();
+      });
+    }
+
+    async function triggerVisualNotesGeneration() {
+      if (!currentPlan) {
+        showStatus("Please upload a document first!", "error");
+        return;
+      }
+      const rawTextareaElem = document.getElementById('original-text-content');
+      const text = rawTextareaElem ? rawTextareaElem.value.trim() : (currentPlan.original_text || "");
+      const targetTitle = activeUploadedFileName || (currentPlan && currentPlan.filename) || (currentPlan && currentPlan.topic) || "Uploaded_Notes.pdf";
+
+      showStatus("Generating visual notes & resolving 3D medical illustrations...", "info");
+
+      const btnGenText = document.getElementById('btn-generate-text');
+      if (btnGenText) {
+        btnGenText.disabled = true;
+        btnGenText.innerHTML = `<span>⏳ Generating...</span>`;
+      }
+
+      try {
+        const res = await apiFetch('/api/v1/generate-visual-notes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            original_note: currentPlan,
+            filename: targetTitle,
+            text: text
+          })
+        });
+        if (res && res.ok) {
+          const plan = await res.json();
+          plan.filename = targetTitle;
+          plan.is_visual_generated = true;
+          render(plan, { name: targetTitle });
+          showStatus("✨ Visual notes generated with 3D cards!", "success");
+          const visualTabBtn = document.querySelector('.tab[data-tab="visual"]');
+          if (visualTabBtn) visualTabBtn.click();
           return;
         }
-        showStatus("Generating dynamic visual notes from text...", "info");
-        try {
-          const res = await apiFetch('/api/v1/lecture-notes/from-text', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: (currentPlan ? currentPlan.topic : "Manual Notes"), text: text })
-          });
-          if (res && res.ok) {
-            const plan = await res.json();
-            render(plan);
-            showStatus("✨ Visual notes generated! Displaying visual notes...", "success");
-            const visualTabBtn = document.querySelector('.tab[data-tab="visual"]');
-            if (visualTabBtn) visualTabBtn.click();
-            return;
-          }
-        } catch (err) {
-          console.warn("API text generation error, running client fallback:", err);
+      } catch (err) {
+        console.warn("API visual notes generation error, running client fallback:", err);
+      } finally {
+        if (btnGenText) {
+          btnGenText.disabled = false;
+          btnGenText.innerHTML = `
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z" />
+            </svg>
+            Generate Visual Notes
+          `;
         }
-        const sections = parseDocumentSectionsClient(text, "Study Notes");
-        const fallbackPlan = {
-          id: 'doc_text_' + Date.now(),
-          filename: "Manual_Notes.pdf",
-          topic: "Study Notes",
-          original_text: text,
-          sections: sections,
-          cards: sections
-        };
-        render(fallbackPlan);
-        showStatus(`✨ Visual notes generated (${sections.length} cards)`, "success");
-        const visualTabBtn = document.querySelector('.tab[data-tab="visual"]');
-        if (visualTabBtn) visualTabBtn.click();
+      }
+
+      const sections = parseDocumentSectionsClient(text, targetTitle);
+      const fallbackPlan = {
+        id: 'doc_text_' + Date.now(),
+        filename: targetTitle,
+        topic: (currentPlan && currentPlan.topic) ? currentPlan.topic : targetTitle.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' '),
+        original_text: text,
+        sections: sections,
+        cards: sections,
+        is_visual_generated: true
+      };
+      render(fallbackPlan, { name: targetTitle });
+      showStatus(`✨ Visual notes generated (${sections.length} cards)`, "success");
+      const visualTabBtn = document.querySelector('.tab[data-tab="visual"]');
+      if (visualTabBtn) visualTabBtn.click();
+    }
+
+    function parseDocumentSectionsClient(rawText, topicName = "Study Notes") {
+      if (!rawText || !rawText.trim()) return [];
+
+      const cleanText = rawText.replace(/AJPHI\s*[|I]\s*VOLUME\s*\d+\s*[|I]\s*\d{4}/gi, '')
+        .replace(/The\s+American\s+Journal\s+of\s+Patient\s+Health\s+Info\s*:\s*\d{4}/gi, '');
+
+      const lines = cleanText.split('\n').map(l => l.trim()).filter(Boolean);
+
+      const sectionTemplates = [
+        { title: "Overview", type: "tagged_items" },
+        { title: "Causes & Risk Factors", type: "tagged_items" },
+        { title: "Pathophysiology", type: "flowchart" },
+        { title: "Signs & Symptoms", type: "tagged_items" },
+        { title: "Diagnostic Workup & Labs", type: "tagged_items" },
+        { title: "Medical & Nursing Management", type: "tagged_items" },
+        { title: "Patient Education & Safety Alerts", type: "tagged_items" }
+      ];
+
+      const sections = sectionTemplates.map(st => ({
+        title: st.title,
+        type: st.type,
+        content: []
+      }));
+
+      let currSecIdx = 0;
+      lines.forEach(l => {
+        if (l.startsWith('--- Page') || l.length < 5) return;
+        sections[currSecIdx % sections.length].content.push(l);
+        if (sections[currSecIdx % sections.length].content.length >= 4) {
+          currSecIdx++;
+        }
       });
+
+      return sections.map((s, idx) => ({
+        section_number: idx + 1,
+        title: s.title,
+        heading: s.title.toUpperCase(),
+        type: s.type,
+        priority_source: "Document Emphasis",
+        content: s.content.slice(0, 5),
+        bullets: s.content.slice(0, 5)
+      })).filter(s => s.bullets.length > 0);
     }
 
     // --- Render Engine ---
@@ -1886,17 +2026,23 @@
       if (!plan) return;
       currentPlan = plan;
 
+      const isDummyName = (n) => !n || n.toLowerCase().includes('page 1') || n.toLowerCase().includes('page_1') || /^page[_\s]*\d+/i.test(n.toLowerCase()) || n.toLowerCase().includes('uploaded_notes') || n.toLowerCase().includes('manual_lecture') || n.toLowerCase().includes('ajphi') || n.toLowerCase().includes('volume');
+
+      // 1. Capture real file name if fileObj is passed
+      if (fileObj && fileObj.name) {
+        activeUploadedFileName = fileObj.name;
+      } else if (!activeUploadedFileName && plan.filename && !isDummyName(plan.filename)) {
+        activeUploadedFileName = plan.filename;
+      }
+
       // Show header info row when plan is rendered
       const fileInfoRow = document.getElementById('file-info-row');
       if (fileInfoRow) fileInfoRow.style.display = 'flex';
 
-      // Dynamic Header Filename & Extension
-      const fullFileName = (fileObj && fileObj.name) || plan.filename || (plan.topic ? plan.topic + ".pdf" : "Uploaded_Notes.pdf");
+      // Dynamic Header Filename (prioritize exact original uploaded file name)
+      let displayFileName = activeUploadedFileName || (fileObj && fileObj.name) || plan.filename || (plan.topic ? plan.topic : "Uploaded_Notes.pdf");
 
-      let displayFileName = fullFileName;
-      if (!displayFileName.includes('.')) {
-        displayFileName += '.pdf';
-      }
+      plan.filename = displayFileName;
 
       // Update Main Header Title (#doc-filename)
       const docFilenameElem = document.getElementById('doc-filename');
@@ -1904,13 +2050,16 @@
         docFilenameElem.textContent = displayFileName;
       }
 
-      // Update Visual & Edit Topic Titles
-      const topicTitle = plan.topic || displayFileName.replace(/\.[^/.]+$/, "").replace(/[_-]/g, ' ');
+      // Update Visual & Edit Topic Titles keeping exact original file name (stripped of extension for subheaders)
+      let rawDocName = activeUploadedFileName || displayFileName;
+      let cleanDocTitle = rawDocName.replace(/\.[^/.]+$/, '');
+      plan.topic = cleanDocTitle;
+
       const visualTopicElem = document.getElementById('visual-topic-title');
-      if (visualTopicElem) visualTopicElem.textContent = topicTitle;
+      if (visualTopicElem) visualTopicElem.textContent = cleanDocTitle;
 
       const editTopicElem = document.getElementById('edit-topic-title');
-      if (editTopicElem) editTopicElem.textContent = topicTitle;
+      if (editTopicElem) editTopicElem.textContent = cleanDocTitle;
 
       // Update Drop Zone Title (simply swap text, keep box style & icon identical)
       updateDropZoneUploadedState(displayFileName);
@@ -2027,8 +2176,12 @@
         const cleanTitle = rawTitle.replace(/^\d+[\.\)]\s*/, '').trim();
         let canonicalTitle = cleanTitle.toUpperCase();
         if (canonicalTitle.includes("OVERVIEW")) canonicalTitle = "OVERVIEW";
-        else if (["TREATMENT", "MEDICATIONS", "MEDICATION", "PHARMACOLOGY", "TREATMENT AND MEDICATIONS", "TREATMENT & MEDICATIONS", "MANAGEMENT"].includes(canonicalTitle)) {
-          canonicalTitle = "TREATMENT & MEDICATIONS";
+
+        const isNonPathwayTitle = /cause|diagnostic|nursing|intervention|medication|drug|complication|overview/i.test(canonicalTitle.toLowerCase());
+        const isPathoTitle = !isNonPathwayTitle && /patho|pathway|flowchart|process|mechanism/i.test(canonicalTitle.toLowerCase());
+        let secImg = sec.image || sec.image_url || (sec.visual && sec.visual.image_url) || sec.cross_section_image_url || sec.organ_image_url || "";
+        if (isPathoTitle || sec.type === 'flowchart' || sec.section_type === 'flowchart' || (sec.flows && sec.flows.length > 0 && !/stage|phase/i.test(canonicalTitle.toLowerCase()))) {
+          secImg = "";
         }
 
         if (!groupedCards[canonicalTitle]) {
@@ -2045,7 +2198,10 @@
             bullets: [],
             items: [],
             flows: sec.flows ? [...sec.flows] : [],
-            accent: accent
+            accent: accent,
+            image: secImg,
+            image_url: secImg,
+            visual: sec.visual || null
           };
           if (sec.isAnatomyCard) {
             groupedCards[canonicalTitle].isAnatomyCard = true;
@@ -2054,6 +2210,12 @@
           }
           if (sec.organ_type) groupedCards[canonicalTitle].organ_type = sec.organ_type;
           orderedKeys.push(canonicalTitle);
+        } else {
+          if (!groupedCards[canonicalTitle].image && secImg) {
+            groupedCards[canonicalTitle].image = secImg;
+            groupedCards[canonicalTitle].image_url = secImg;
+            if (sec.visual) groupedCards[canonicalTitle].visual = sec.visual;
+          }
         }
 
         const card = groupedCards[canonicalTitle];
@@ -2064,6 +2226,12 @@
         if (isPathwaySection) {
           card.type = 'flowchart';
           card.section_type = 'flowchart';
+          card.image = '';
+          card.image_url = '';
+          if (card.visual) {
+            card.visual.required = false;
+            card.visual.image_url = '';
+          }
           if (sec.flows) {
             sec.flows.forEach(fl => {
               if (!card.flows.some(existingFl => JSON.stringify(existingFl) === JSON.stringify(fl))) {
@@ -2134,6 +2302,21 @@
     function generateVisualNotesHTML(plan) {
       if (!plan) return '';
 
+      // If Visual Notes haven't been generated yet, render placeholder inviting user to generate
+      if (plan.is_visual_generated === false || (!plan.bottom_panels && !(plan.header && plan.header.subtitle && plan.header.subtitle.includes('3D Cards')))) {
+        return `
+          <div class="flex flex-col items-center justify-center p-10 bg-white rounded-2xl border border-slate-200 shadow-xs text-center my-6 gap-3">
+            <div class="w-14 h-14 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-2xl font-bold">✨</div>
+            <h3 class="text-lg font-extrabold text-slate-800">Original Note Analyzed & Ready</h3>
+            <p class="text-xs text-slate-500 max-w-md leading-relaxed">Your uploaded document has been summarized into 6–8 structured original note sections. Click below to generate 3D visual cards, anatomical diagrams, and study flowcharts.</p>
+            <button onclick="triggerVisualNotesGeneration()" class="mt-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold px-6 py-3 rounded-xl shadow-md transition flex items-center gap-2 text-xs cursor-pointer">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"/></svg>
+              Generate Visual Notes & 3D Cards
+            </button>
+          </div>
+        `;
+      }
+
       const header = plan.header || plan.document || {};
       const bp = plan.bottom_panels || {};
       const topicTitle = plan.topic || "Visual Notes";
@@ -2145,37 +2328,20 @@
       }
       sections = sanitizeAndGroupSectionsClient(sections);
 
-      // Dynamic Organ Detection with Priority (Title -> Headings -> Body Text)
+      // Dynamic Organ / Topic Detection
       function detectDocumentOrgan(title, text, secs) {
-        const titleLower = (title || '').toLowerCase();
-        const headingsLower = (secs || []).map(s => (s.title || s.heading || '')).join(' ').toLowerCase();
-        const bodyLower = (text || '').toLowerCase().replace(/\bheart rate\b/g, '').replace(/\brespiratory rate\b/g, '');
+        const fullText = ((title || '') + " " + (text || '') + " " + (secs || []).map(s => (s.title || '') + " " + (s.content || '')).join(" ")).toLowerCase();
+        if (fullText.includes("lung") || fullText.includes("respirat") || fullText.includes("breath") || fullText.includes("pneumon") || fullText.includes("asthma") || fullText.includes("copd") || fullText.includes("ards")) return { type: "lungs", name: "Lungs" };
+        if (fullText.includes("heart") || fullText.includes("cardiac") || fullText.includes("cad") || fullText.includes("infarct") || fullText.includes("coronary") || fullText.includes("angina") || fullText.includes("artery")) return { type: "heart", name: "Heart" };
+        if (fullText.includes("brain") || fullText.includes("stroke") || fullText.includes("neuro") || fullText.includes("head") || fullText.includes("seizure") || fullText.includes("cerebr")) return { type: "brain", name: "Brain" };
+        if (fullText.includes("kidney") || fullText.includes("renal") || fullText.includes("nephron") || fullText.includes("dialysis") || fullText.includes("gfr")) return { type: "kidney", name: "Kidney" };
+        if (fullText.includes("liver") || fullText.includes("hepat") || fullText.includes("cirrhosis") || fullText.includes("biliary")) return { type: "liver", name: "Liver" };
+        if (fullText.includes("stomach") || fullText.includes("gastric") || fullText.includes("peptic") || fullText.includes("gastro")) return { type: "stomach", name: "Stomach" };
+        if (fullText.includes("vessel") || fullText.includes("vascular") || fullText.includes("aorta") || fullText.includes("vein") || fullText.includes("blood flow")) return { type: "vessels", name: "Blood Vessels" };
 
-        if (/\b(brain|neuro|cerebr|head|central nervous|cns|stroke|seizure|encephal)\b/i.test(titleLower)) return { type: 'brain', name: 'Brain' };
-        if (/\b(lung|lungs|pulmon|respir|ards|asthma|copd|pneumonia|breath)\b/i.test(titleLower)) return { type: 'lungs', name: 'Lungs' };
-        if (/\b(kidney|renal|nephron|glomerul|aki|ckd|dialysis)\b/i.test(titleLower)) return { type: 'kidney', name: 'Kidneys' };
-        if (/\b(liver|hepatic|biliary|gallbladder|hepatitis|cirrhosis)\b/i.test(titleLower)) return { type: 'liver', name: 'Liver' };
-        if (/\b(stomach|gastric|peptic|digestive|gerd|ulcer|gut)\b/i.test(titleLower)) return { type: 'stomach', name: 'Stomach' };
-        if (/\b(heart|cardiac|cardiovascular|myocard|atrium|ventricle|aorta)\b/i.test(titleLower)) return { type: 'heart', name: 'Heart' };
-        if (/\b(vessel|vascular|artery|vein|capillary|dvt|hypertension)\b/i.test(titleLower)) return { type: 'vessels', name: 'Blood Vessels' };
-
-        if (/\b(brain|neuro|cerebr|cns|neuron|cortex)\b/i.test(headingsLower)) return { type: 'brain', name: 'Brain' };
-        if (/\b(lung|lungs|pulmon|respir|alveoli)\b/i.test(headingsLower)) return { type: 'lungs', name: 'Lungs' };
-        if (/\b(kidney|renal|nephron|glomerul)\b/i.test(headingsLower)) return { type: 'kidney', name: 'Kidneys' };
-        if (/\b(liver|hepatic|biliary|gallbladder)\b/i.test(headingsLower)) return { type: 'liver', name: 'Liver' };
-        if (/\b(stomach|gastric|peptic|digestive)\b/i.test(headingsLower)) return { type: 'stomach', name: 'Stomach' };
-        if (/\b(heart|cardiac|cardiovascular|myocardium)\b/i.test(headingsLower)) return { type: 'heart', name: 'Heart' };
-        if (/\b(vessel|vascular|artery|vein|capillary)\b/i.test(headingsLower)) return { type: 'vessels', name: 'Blood Vessels' };
-
-        if (/\b(brain|neuro|cerebr|cns|neuron|cortex)\b/i.test(bodyLower)) return { type: 'brain', name: 'Brain' };
-        if (/\b(lung|lungs|pulmon|respir|alveoli)\b/i.test(bodyLower)) return { type: 'lungs', name: 'Lungs' };
-        if (/\b(kidney|renal|nephron|glomerul)\b/i.test(bodyLower)) return { type: 'kidney', name: 'Kidneys' };
-        if (/\b(liver|hepatic|biliary|gallbladder)\b/i.test(bodyLower)) return { type: 'liver', name: 'Liver' };
-        if (/\b(stomach|gastric|peptic|digestive)\b/i.test(bodyLower)) return { type: 'stomach', name: 'Stomach' };
-        if (/\b(heart|cardiac|cardiovascular|myocardium)\b/i.test(bodyLower)) return { type: 'heart', name: 'Heart' };
-        if (/\b(vessel|vascular|artery|vein|capillary)\b/i.test(bodyLower)) return { type: 'vessels', name: 'Blood Vessels' };
-
-        return { type: 'brain', name: 'Brain' };
+        const cleanTitle = (title || '').trim();
+        const slug = cleanTitle.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'medical_concept';
+        return { type: slug, name: cleanTitle || 'Medical Subject' };
       }
 
       const organInfo = detectDocumentOrgan(topicTitle, plan.original_text || '', sections);
@@ -2191,215 +2357,6 @@
           sec.isAnatomyCard = true;
         }
       });
-
-      const defaultAnatomyItems = {
-        lungs: [
-          { label: "PRIMARY STRUCTURE", text: "Paired respiratory organs in thoracic cavity separated by mediastinum." },
-          { label: "ALVEOLAR MEMBRANE", text: "Alveoli capillaries form thin membrane for O2 & CO2 gas exchange." },
-          { label: "SURFACTANT LAYER", text: "Phospholipid lining reducing surface tension to prevent atelectasis." },
-          { label: "PLEURAL SPACE", text: "Visceral & parietal pleura lubricated by serous fluid for smooth lung expansion." }
-        ],
-        heart: [
-          { label: "MYOCARDIUM", text: "Thick muscular middle layer driving systemic & pulmonary circulation." },
-          { label: "FOUR CHAMBERS", text: "Right/Left Atria and Ventricles regulating unidirectional blood flow." },
-          { label: "VALVULAR APPARATUS", text: "Atrioventricular & semilunar valves preventing retrograde blood flow." },
-          { label: "PERICARDIAL SAC", text: "Double-walled sac protecting cardiac tissue & cushioning movement." }
-        ],
-        kidney: [
-          { label: "NEPHRON UNITS", text: "Functional units filtering metabolic wastes & maintaining fluid balance." },
-          { label: "GLOMERULUS", text: "Capillary bed performing high-pressure blood plasma filtration." },
-          { label: "RENAL CORTEX & MEDULLA", text: "Outer filtration layer & inner pyramid region concentrating urine." },
-          { label: "JUXTAGLOMERULAR APPARATUS", text: "Regulates blood pressure via renin secretion and sodium balance." }
-        ],
-        liver: [
-          { label: "HEPATIC LOBULES", text: "Functional units processing nutrients, toxins, and bile synthesis." },
-          { label: "HEPATOCYTES & SINUSOIDS", text: "Primary metabolic cells exchanging nutrients with portal circulation." },
-          { label: "BILIARY TREE", text: "Duct system collecting and transporting bile for lipid digestion." },
-          { label: "KUPFFER CELLS", text: "Specialized hepatic macrophages clearing pathogens & cell debris." }
-        ],
-        brain: [
-          { label: "CEREBRAL CORTEX", text: "Outer neural layer responsible for memory, reasoning, language, and sensory integration." },
-          { label: "BRAINSTEM & CNS", text: "Regulates autonomic functions (respiration, cardiac rhythm, vasomotor control) with spinal cord." },
-          { label: "MOTOR & SENSORY PATHWAYS", text: "Coordinates voluntary/involuntary motor movements & interprets somatic sensory inputs." },
-          { label: "BLOOD-BRAIN BARRIER", text: "Selective endothelial barrier protecting brain tissue & maintaining neural homeostasis." }
-        ],
-        stomach: [
-          { label: "GASTRIC MUCOSA", text: "Parietal & chief cells secreting HCl acid & pepsinogen for digestion." },
-          { label: "MUSCULARIS EXTERNA", text: "Three smooth muscle layers enabling churning & mechanical breakdown." },
-          { label: "PYLORIC SPHINCTER", text: "Regulates controlled passage of acidic chyme into duodenum." },
-          { label: "RUGAE FOLDS", text: "Mucosal folds allowing gastric expansion during fluid/food intake." }
-        ],
-        vessels: [
-          { label: "TUNICA INTIMA & ENDOTHELIUM", text: "Vascular lining regulating vascular tone, permeability, and smooth blood flow." },
-          { label: "TUNICA MEDIA", text: "Smooth muscle and elastic fibers regulating vasodilation and vasoconstriction." },
-          { label: "TUNICA ADVENTITIA", text: "Outer connective tissue anchoring blood vessels to surrounding tissues." },
-          { label: "CAPILLARY BED", text: "Microvascular network facilitating tissue oxygenation and nutrient exchange." }
-        ]
-      };
-
-      const defaultStagesItems = {
-        lungs: [
-          { label: "STAGE 1: EXUDATIVE PHASE", text: "Alveolar edema, capillary congestion, and neutrophil infiltration (Days 1-7)." },
-          { label: "STAGE 2: PROLIFERATIVE PHASE", text: "Type II pneumocyte hyperplasia and cellular tissue repair (Days 7-21)." },
-          { label: "STAGE 3: FIBROTIC PHASE", text: "Extensive pulmonary fibrosis, lung remodeling, and compliance loss (>21 Days)." }
-        ],
-        heart: [
-          { label: "STAGE A: AT RISK", text: "High risk for heart failure without structural disease or symptoms." },
-          { label: "STAGE B: PRE-HEART FAILURE", text: "Structural heart disease present without clinical signs or symptoms." },
-          { label: "STAGE C: SYMPTOMATIC HF", text: "Structural heart disease with past or current heart failure symptoms." },
-          { label: "STAGE D: ADVANCED HF", text: "Marked refractory symptoms at rest requiring specialized interventions." }
-        ],
-        kidney: [
-          { label: "STAGE 1: NORMAL / HIGH GFR", text: "Kidney damage with normal or elevated GFR (≥90 mL/min/1.73m²)." },
-          { label: "STAGE 2: MILD DECREASE", text: "Mild reduction in renal function (GFR 60-89 mL/min/1.73m²)." },
-          { label: "STAGE 3: MODERATE DECREASE", text: "Moderate GFR decline (Stage 3a: 45-59, Stage 3b: 30-44 mL/min)." },
-          { label: "STAGE 4: SEVERE DECREASE", text: "Severe loss of kidney function (GFR 15-29 mL/min/1.73m²)." },
-          { label: "STAGE 5: KIDNEY FAILURE", text: "End-stage renal disease (ESRD) requiring dialysis or transplant (GFR <15)." }
-        ],
-        liver: [
-          { label: "STAGE 1: INFLAMMATION", text: "Early liver cell swelling and hepatic inflammation." },
-          { label: "STAGE 2: FIBROSIS", text: "Scar tissue begins to form around liver tissue and portal triads." },
-          { label: "STAGE 3: CIRRHOSIS", text: "Permanent irreversible nodular scarring altering hepatic vasculature." },
-          { label: "STAGE 4: LIVER FAILURE", text: "End-stage hepatic decompensation requiring liver transplantation." }
-        ],
-        brain: [
-          { label: "STAGE 1: EARLY / MILD", text: "Initial cognitive decline, subtle memory loss, and focal symptoms." },
-          { label: "STAGE 2: MODERATE / PROGRESSIVE", text: "Increasing disorientation, speech difficulty, and impaired motor control." },
-          { label: "STAGE 3: SEVERE / ADVANCED", text: "Profound neural deficits, loss of autonomy, and autonomic instability." }
-        ],
-        stomach: [
-          { label: "STAGE 1: MUCOSAL DAMAGE", text: "Superficial gastric mucosal irritation and acid erosion." },
-          { label: "STAGE 2: ULCER FORMATION", text: "Deeper submucosal erosion forming active gastric ulceration." },
-          { label: "STAGE 3: COMPLICATED DISEASE", text: "Risk of gastric perforation, bleeding, or pyloric stenosis." }
-        ],
-        vessels: [
-          { label: "STAGE 1: ENDOTHELIAL DAMAGE", text: "Vascular wall shear stress and lipid streak accumulation." },
-          { label: "STAGE 2: PLAQUE FORMATION", text: "Fibrous cap formation causing luminal arterial narrowing." },
-          { label: "STAGE 3: OCCLUSION / RUPTURE", text: "Critical tissue ischemia, thrombosis, or plaque rupture." }
-        ]
-      };
-
-      const defaultPathwayMap = {
-        lungs: {
-          id: "section_pathway_default",
-          title: "ARDS & RESPIRATORY PATHOPHYSIOLOGY PATHWAY",
-          heading: "ARDS & RESPIRATORY PATHOPHYSIOLOGY PATHWAY",
-          type: "flowchart",
-          section_type: "flowchart",
-          flows: [{
-            label: "ARDS PATHOPHYSIOLOGY PATHWAY",
-            steps: [
-              { name: "INJURY INITIATION", subtext: "Direct or indirect pulmonary insult triggers systemic inflammatory release." },
-              { name: "ENDOTHELIAL DAMAGE", subtext: "Neutrophil infiltration damages alveolar-capillary membrane barrier." },
-              { name: "ALVEOLAR FLUID EXUDATE", subtext: "Protein-rich exudative fluid fills alveoli and inactivates surfactant." },
-              { name: "ATELECTASIS & HYPOXEMIA", subtext: "Alveolar collapse leads to severe V/Q mismatch and refractory hypoxemia." }
-            ]
-          }],
-          accent: "purple"
-        },
-        heart: {
-          id: "section_pathway_default",
-          title: "CARDIAC BLOOD FLOW PATHWAY",
-          heading: "CARDIAC BLOOD FLOW PATHWAY",
-          type: "flowchart",
-          section_type: "flowchart",
-          flows: [{
-            label: "CARDIAC CIRCULATION PATHWAY",
-            steps: [
-              { name: "RIGHT ATRIUM", subtext: "Receives deoxygenated venous return from vena cava." },
-              { name: "RIGHT VENTRICLE", subtext: "Pumps deoxygenated blood through pulmonary artery into lungs." },
-              { name: "LEFT ATRIUM", subtext: "Receives oxygen-rich blood returning from pulmonary veins." },
-              { name: "LEFT VENTRICLE & AORTA", subtext: "Propels oxygenated blood into systemic arterial circulation." }
-            ]
-          }],
-          accent: "purple"
-        },
-        kidney: {
-          id: "section_pathway_default",
-          title: "RENAL FILTRATION PATHWAY",
-          heading: "RENAL FILTRATION PATHWAY",
-          type: "flowchart",
-          section_type: "flowchart",
-          flows: [{
-            label: "NEPHRON URINE FORMATION PATHWAY",
-            steps: [
-              { name: "GLOMERULAR FILTRATION", subtext: "High-pressure plasma filtration at Bowman capsule." },
-              { name: "PROXIMAL REABSORPTION", subtext: "Reabsorption of glucose, amino acids, water, and sodium." },
-              { name: "LOOP OF HENLE COUNTERCURRENT", subtext: "Establishes osmotic gradient concentrating tubular fluid." },
-              { name: "COLLECTING DUCT EXCRETION", subtext: "Final water reabsorption under ADH control and urine excretion." }
-            ]
-          }],
-          accent: "purple"
-        },
-        liver: {
-          id: "section_pathway_default",
-          title: "HEPATIC CIRCULATION PATHWAY",
-          heading: "HEPATIC CIRCULATION PATHWAY",
-          type: "flowchart",
-          section_type: "flowchart",
-          flows: [{
-            label: "HEPATIC PROCESSING PATHWAY",
-            steps: [
-              { name: "PORTAL INFLOW", subtext: "Dual blood supply from hepatic artery and portal vein enters sinusoids." },
-              { name: "HEPATOCYTE CLEARANCE", subtext: "Metabolic transformation, toxin neutralization, and glycogen storage." },
-              { name: "BILE SYNTHESIS", subtext: "Secretes bile acids and conjugated bilirubin into bile canaliculi." },
-              { name: "HEPATIC VEIN OUTFLOW", subtext: "Cleared blood drains to inferior vena cava while bile drains to gallbladder." }
-            ]
-          }],
-          accent: "purple"
-        },
-        brain: {
-          id: "section_pathway_default",
-          title: "NEURAL REFLEX & CONDUCTION PATHWAY",
-          heading: "NEURAL REFLEX & CONDUCTION PATHWAY",
-          type: "flowchart",
-          section_type: "flowchart",
-          flows: [{
-            label: "CENTRAL NERVOUS SYSTEM PATHWAY",
-            steps: [
-              { name: "SENSORY RECEPTOR INPUT", subtext: "Periphery detects environmental stimulus and transmits via afferent nerve." },
-              { name: "SPINAL & CEREBRAL INTEGRATION", subtext: "Interneurons process signal in cerebral cortex and thalamic relay." },
-              { name: "EFFERENT MOTOR COMMAND", subtext: "Motor cortex dispatches impulse down corticospinal tract." },
-              { name: "TARGET EFFECTOR RESPONSE", subtext: "Neuromuscular junction activates target muscle or autonomic gland." }
-            ]
-          }],
-          accent: "purple"
-        },
-        stomach: {
-          id: "section_pathway_default",
-          title: "GASTRIC DIGESTIVE PATHWAY",
-          heading: "GASTRIC DIGESTIVE PATHWAY",
-          type: "flowchart",
-          section_type: "flowchart",
-          flows: [{
-            label: "GASTRIC SECRETION & MOTILITY PATHWAY",
-            steps: [
-              { name: "CEPHALIC & GASTRIC PHASE", subtext: "Vagal stimulation & gastrin release trigger HCl acid secretion." },
-              { name: "MECHANICAL CHURNING", subtext: "Muscularis externa contractions mix food into acidic chyme." },
-              { name: "PROTEIN DIGESTION", subtext: "Pepsin breaks down proteins in low pH environment." },
-              { name: "PYLORIC EMPTYING", subtext: "Controlled release of chyme through pyloric sphincter into duodenum." }
-            ]
-          }],
-          accent: "purple"
-        },
-        vessels: {
-          id: "section_pathway_default",
-          title: "VASCULAR HEMODYNAMIC PATHWAY",
-          heading: "VASCULAR HEMODYNAMIC PATHWAY",
-          type: "flowchart",
-          section_type: "flowchart",
-          flows: [{
-            label: "VASCULAR PERFUSION PATHWAY",
-            steps: [
-              { name: "ARTERIAL INFLOW", subtext: "High pressure oxygenated surge delivered from aorta into major arteries." },
-              { name: "ARTERIOLAR RESISTANCE", subtext: "Smooth muscle tone regulates peripheral resistance and blood pressure." },
-              { name: "CAPILLARY EXCHANGE", subtext: "Microvascular diffusion delivers O2 and nutrients while picking up CO2." },
-              { name: "VENOUS RETURN", subtext: "Low pressure return facilitated by skeletal muscle pumps and valves." }
-            ]
-          }],
-          accent: "purple"
-        }
-      };
 
       let overviewCard = null;
       let anatomyCardSec = null;
@@ -2438,8 +2395,6 @@
         } else if (isAnatomy && !anatomyCardSec) {
           anatomyCardSec = sec;
           anatomyCardSec.isAnatomyCard = true;
-          anatomyCardSec.title = `ANATOMY OF THE ${docOrganName.toUpperCase()}`;
-          anatomyCardSec.heading = anatomyCardSec.title;
         } else if (isPathway) {
           pathwayCards.push(sec);
         } else {
@@ -2467,31 +2422,12 @@
 
       if (overviewCard && sections.length > 1) {
         const leakageLabels = ["pathophysiology", "patho", "diagnostic", "nursing", "intervention", "treatment", "medication"];
-        const leakagePhrases = ["chest xray", "white out", "bronchoscopy", "blood culture", "abg blood", "v/q mismatch", "stiff lungs"];
         if (overviewCard.items && Array.isArray(overviewCard.items)) {
           overviewCard.items = overviewCard.items.filter(it => {
             const lbl = (it.label || "").trim().toLowerCase();
-            const txt = (it.text || "").trim().toLowerCase();
-            const isLeaked = leakageLabels.some(kl => lbl.includes(kl)) || leakagePhrases.some(kp => txt.includes(kp));
-            return !isLeaked;
+            return !leakageLabels.some(kl => lbl.includes(kl));
           });
         }
-      }
-
-      if (!anatomyCardSec) {
-        anatomyCardSec = {
-          id: 'section_anatomy_organ',
-          title: `ANATOMY OF THE ${docOrganName.toUpperCase()}`,
-          heading: `ANATOMY OF THE ${docOrganName.toUpperCase()}`,
-          type: 'tagged_items',
-          section_type: 'tagged_items',
-          organ_type: docOrganType,
-          items: defaultAnatomyItems[docOrganType] || defaultAnatomyItems.lungs,
-          isAnatomyCard: true,
-          accent: 'blue'
-        };
-      } else if (!anatomyCardSec.items || !anatomyCardSec.items.length || anatomyCardSec.items.every(it => !(it.text || '').trim())) {
-        anatomyCardSec.items = defaultAnatomyItems[docOrganType] || defaultAnatomyItems.lungs;
       }
 
       // Convert real text of pathway cards into flow steps if flows is missing or empty
@@ -2532,35 +2468,73 @@
             }];
           }
         }
+        pCard.image = "";
+        pCard.image_url = "";
+        if (pCard.visual) {
+          pCard.visual.required = false;
+          pCard.visual.image_url = "";
+        }
       });
 
       if (!pathwayCards || pathwayCards.length === 0) {
-        const fallbackPathway = defaultPathwayMap[docOrganType] || defaultPathwayMap.lungs;
-        pathwayCards.push(fallbackPathway);
+        pathwayCards.push({
+          id: "section_pathway_default",
+          title: `${docOrganName.toUpperCase()} CLINICAL PATHWAY`,
+          heading: `${docOrganName.toUpperCase()} CLINICAL PATHWAY`,
+          type: "flowchart",
+          section_type: "flowchart",
+          image: "",
+          image_url: "",
+          visual: {
+            required: false,
+            type: "pathway",
+            image_url: ""
+          },
+          flows: [{
+            label: `${docOrganName.toUpperCase()} CLINICAL PATHWAY`,
+            steps: [
+              { name: "INITIATION", subtext: `Primary insult or physiological change in ${docOrganName}.` },
+              { name: "PATHOPHYSIOLOGY", subtext: "Cellular cascade and systemic response." },
+              { name: "CLINICAL MANIFESTATIONS", subtext: "Diagnostic findings and assessment signs." }
+            ]
+          }],
+          accent: "purple"
+        });
       }
 
       let orderedSections = [];
-      orderedSections.push(overviewCard);
-      orderedSections.push(anatomyCardSec);
-      pathwayCards.forEach(pCard => orderedSections.push(pCard));
-      otherRegularCards.forEach(rCard => orderedSections.push(rCard));
+      if (overviewCard) orderedSections.push(overviewCard);
+      if (anatomyCardSec) orderedSections.push(anatomyCardSec);
+      pathwayCards.forEach(pCard => { if (pCard) orderedSections.push(pCard); });
+      otherRegularCards.forEach(rCard => { if (rCard) orderedSections.push(rCard); });
 
-      sections = orderedSections;
+      sections = orderedSections.filter(Boolean);
+      // Cap sections array to maximum 8 cards as required by prompt specification
+      sections = sections.slice(0, 8);
       plan.sections = sections;
       plan.cards = sections;
 
       let html = `<div class="vnotes-dashboard-container flex flex-col gap-6 my-2">`;
 
+
       // Header Block
+      let baseDocName = (activeUploadedFileName || plan.filename || topicTitle || "Visual Notes").replace(/\.[^/.]+$/, "");
+      let displayTitle = baseDocName;
+      if (!displayTitle.toLowerCase().includes("visual notes")) {
+        displayTitle = displayTitle + " Visual Notes";
+      }
+      displayTitle = displayTitle.replace(/\bVisual Notes\s+Visual Notes\b/gi, 'Visual Notes').replace(/Visual Notes Visual Notes/gi, 'Visual Notes');
+
       html += `
-        <div class="vnotes-header-block">
-          <h1 class="text-2xl font-extrabold text-slate-800 tracking-tight mb-1">${esc(header.title || topicTitle + " Visual Notes")}</h1>
+        <div class="vnotes-header-block mb-2">
+          <h1 class="text-2xl font-extrabold text-slate-800 tracking-tight mb-1">${esc(displayTitle)}</h1>
           <p class="text-xs font-medium text-slate-500">${esc(header.subtitle || "AI-converted from your uploaded materials")}</p>
         </div>
       `;
 
       // Container using 2 Cards per Row Grid (md:grid-cols-2)
       html += `<div class="grid grid-cols-1 md:grid-cols-2 gap-6">`;
+
 
       const pathwayStepIconMap = {
         brain: '🧠',
@@ -2667,6 +2641,7 @@
 
       // Loop through all parsed sections to build dynamic cards
       sections.forEach((sec, idx) => {
+        if (!sec || typeof sec !== 'object') return;
         const secAccentKey = sec.accent || plan.theme || 'blue';
         const themeStyle = resolveDynamicThemeStyle(secAccentKey);
 
@@ -2904,44 +2879,23 @@
           }
           html += `</div>`; // End Left Text Column
 
-          // Image Column Resolution
-          const anatomyCrossSectionMap = {
-            heart: "/assets/generated/heart_cross_section.png",
-            lungs: "/assets/generated/lungs_cross_section.png",
-            kidney: "/assets/generated/kidney_cross_section.png",
-            liver: "/assets/generated/liver_cross_section.png",
-            brain: "/assets/generated/brain_cross_section.png",
-            stomach: "/assets/stomach_3d_organ.png",
-            vessels: "/assets/vessels_3d_cutaway.png"
-          };
-
-          const organ3DAssetMap = {
-            heart: "/assets/heart_3d_organ.png",
-            lungs: "/assets/lungs_3d_organ.png",
-            kidney: "/assets/kidney_3d_organ.png",
-            liver: "/assets/liver_3d_organ.png",
-            brain: "/assets/brain_3d_organ.png",
-            stomach: "/assets/stomach_3d_organ.png",
-            vessels: "/assets/vessels_3d_cutaway.png"
-          };
-
-          let resolvedImg = '';
-          if (imgUrl) {
-            resolvedImg = imgUrl;
-          } else if (isMedicationSection) {
-            resolvedImg = "/assets/medication.jpg";
-          } else if (isAnatomySection) {
-            resolvedImg = anatomyCrossSectionMap[organType] || anatomyCrossSectionMap[docOrganType] || '/assets/generated/heart_cross_section.png';
-          } else if (isOverviewSection) {
-            resolvedImg = organ3DAssetMap[organType] || organ3DAssetMap[docOrganType] || '/assets/heart_3d_organ.png';
-          } else if (isVesselsSection) {
-            resolvedImg = "/assets/vessels_3d_cutaway.png";
+          // Image Column Resolution (Pathway/Pathophysiology cards are icon-based flows and never display images)
+          function resolveClientCardImage(secTitle, organType, secObj) {
+            const titleLow = String(secTitle || '').toLowerCase();
+            const typeLow = String((secObj && (secObj.type || secObj.section_type)) || '').toLowerCase();
+            if (isPathwaySection || /patho|pathway|flowchart|mechanism/i.test(titleLow) || typeLow === 'flowchart' || typeLow === 'pathophysiology') {
+              return '';
+            }
+            let img = secObj.image || secObj.image_url || (secObj.visual && secObj.visual.image_url) || secObj.cross_section_image_url || secObj.organ_image_url || '';
+            return img || '';
           }
+
+          const resolvedImg = resolveClientCardImage(cleanSecTitle, docOrganType, sec);
 
           if (resolvedImg) {
             html += `
               <div class="w-full md:w-36 h-36 flex-shrink-0 rounded-2xl overflow-hidden bg-slate-50 border border-slate-100 flex items-center justify-center p-2 shadow-xs self-center md:self-start">
-                <img src="${esc(resolvedImg)}" alt="${esc(cleanSecTitle)}" class="w-full h-full object-contain" onerror="this.onerror=null; this.parentElement.style.display='none';" />
+                <img src="${esc(resolvedImg)}" alt="${esc(cleanSecTitle)}" class="w-full h-full object-contain cursor-pointer hover:scale-105 transition" onclick="openDiagramLightbox('${esc(resolvedImg)}', '${esc(cleanSecTitle)}')" onerror="this.onerror=null; this.parentElement.style.display='none';" />
               </div>
             `;
           }
@@ -2954,8 +2908,8 @@
       html += `</div>`; // End Grid Container
 
       // Bottom Panels (Clinical Tip & Remember with Nurse and Brain Avatars)
-      const tip = bp.clinical_tip || { title: "Clinical Tip", text: "Assess for <span style='color:red; font-weight:bold;'>Murphy's Sign</span> to evaluate for kidney-related pain." };
-      const remember = bp.remember_mnemonic || { title: "Remember", text: "Use '<span style='color:red; font-weight:bold;'>KIDNEY</span>' to recall key functions: Keep electrolytes balanced, Identify waste, Deliver blood, Nourish RBCs, Excrete urine, Yield homeostasis." };
+      const tip = bp.clinical_tip || { title: "Clinical Tip", text: `Monitor vital parameters and clinical signs closely when assessing ${esc(docOrganName.toLowerCase())} function.` };
+      const remember = bp.remember_mnemonic || { title: "Remember", text: `Recall key anatomical landmarks and primary diagnostic criteria for ${esc(topicTitle)}.` };
 
       html += `
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
@@ -3005,10 +2959,20 @@
           return;
         }
 
-        let derivedTitle = "Manual_Lecture_Notes.txt";
-        const firstLine = manualText.split('\n')[0].replace(/^[#*•\-\s]+/, '').trim();
-        if (firstLine && firstLine.length > 2 && firstLine.length < 60) {
-          derivedTitle = firstLine.replace(/[^a-zA-Z0-9_\-\s]/g, '').trim().replace(/\s+/g, '_') + '.txt';
+        // Preserve uploaded file name if one exists
+        let derivedTitle = activeUploadedFileName || (currentPlan && currentPlan.filename && !isDummyName(currentPlan.filename) ? currentPlan.filename : "");
+        if (!derivedTitle) {
+          derivedTitle = "Manual_Lecture_Notes.txt";
+          const candidateLines = manualText.split('\n')
+            .map(l => l.replace(/^[#*•\-\s]+/, '').trim())
+            .filter(l => l.length > 2 && !/^---?\s*(page|slide)/i.test(l) && !/^page[_\s]*\d+/i.test(l) && !/^slide[_\s]*\d+/i.test(l) && !/^(AJPHI|VOLUME\s+\d+|The\s+American\s+Journal|ISSN|DOI|Published by)/i.test(l));
+
+          if (candidateLines.length > 0) {
+            const candidate = candidateLines[0];
+            if (candidate.length < 60) {
+              derivedTitle = candidate.replace(/[^a-zA-Z0-9_\-\s]/g, '').trim().replace(/\s+/g, '_') + '.txt';
+            }
+          }
         }
 
         showStatus('Generating visual notes from your text...', 'info');
@@ -3204,7 +3168,7 @@
             listToProcess.forEach(sec => {
               if (sec && typeof sec === 'object') {
                 if (Array.isArray(sec.items)) {
-                  sec.items = sec.items.slice(0, 4);
+                  sec.items = sec.items.slice(0, 5);
                   sec.items.forEach(it => {
                     if (it && it.text) {
                       const s = String(it.text).split(/\.\s+/)[0].trim();
@@ -3213,7 +3177,7 @@
                   });
                 }
                 if (Array.isArray(sec.bullets)) {
-                  sec.bullets = sec.bullets.slice(0, 4).map(b => {
+                  sec.bullets = sec.bullets.slice(0, 5).map(b => {
                     if (typeof b === 'string') {
                       const s = b.split(/\.\s+/)[0].trim();
                       return s ? (s.endsWith('.') ? s : s + '.') : b;
@@ -3222,7 +3186,7 @@
                   });
                 }
                 if (Array.isArray(sec.flows)) {
-                  sec.flows = sec.flows.slice(0, 4);
+                  sec.flows = sec.flows.slice(0, 5);
                 }
               }
             });

@@ -132,190 +132,698 @@ def extract_raw_text(file_name: str, content_bytes: bytes) -> str:
 
 
 # --- Smart Asset Resolution System ---
-ASSET_CATALOG: Dict[str, Dict[str, str]] = {
-    "heart": {
-        "organ_3d": "/assets/generated/heart_organ_3d.png",
-        "cross_section": "/assets/generated/heart_cross_section.png",
-        "primary": "/assets/heart_3d_organ.png",
-        "pathway": "/assets/vessels_3d_cutaway.png"
-    },
-    "lungs": {
-        "organ_3d": "/assets/lungs_3d_organ.png",
-        "cross_section": "/assets/generated/lungs_cross_section.png",
-        "primary": "/assets/lungs_3d_organ.png",
-        "pathway": "/assets/generated/respiratory_cross_section.png"
-    },
-    "kidney": {
-        "organ_3d": "/assets/generated/kidney_organ_3d.png",
-        "cross_section": "/assets/generated/kidney_cross_section.png",
-        "primary": "/assets/kidney_3d_organ.png",
-        "pathway": "/assets/generated/kidney_and_nephron_organ_3d.png"
-    },
-    "liver": {
-        "organ_3d": "/assets/generated/liver_organ_3d.png",
-        "cross_section": "/assets/generated/liver_cross_section.png",
-        "primary": "/assets/liver_3d_organ.png",
-        "pathway": "/assets/liver_3d_organ.png"
-    },
-    "brain": {
-        "organ_3d": "/assets/generated/brain_organ_3d.png",
-        "cross_section": "/assets/generated/brain_cross_section.png",
-        "primary": "/assets/brain_3d_organ.png",
-        "pathway": "/assets/generated/brain_cross_section.png"
-    },
-    "stomach": {
-        "organ_3d": "/assets/stomach_3d_organ.png",
-        "cross_section": "/assets/stomach_3d_organ.png",
-        "primary": "/assets/stomach_3d_organ.png",
-        "pathway": "/assets/stomach_3d_organ.png"
-    },
-    "vessels": {
-        "organ_3d": "/assets/vessels_3d_cutaway.png",
-        "cross_section": "/assets/vessels_3d_cutaway.png",
-        "primary": "/assets/vessels_3d_cutaway.png",
-        "pathway": "/assets/vessels_3d_cutaway.png"
-    },
-    "pharmacology": {
-        "organ_3d": "/assets/generated/pharmacology_organ_3d.png",
-        "cross_section": "/assets/generated/pharmacology_cross_section.png",
-        "primary": "/assets/medication.jpg",
-        "pathway": "/assets/generated/pharmacology_cross_section.png"
-    },
-    "pathology": {
-        "organ_3d": "/assets/generated/pathology_organ_3d.png",
-        "cross_section": "/assets/generated/pathology_organ_3d.png",
-        "primary": "/assets/generated/pathology_organ_3d.png",
-        "pathway": "/assets/generated/pathology_organ_3d.png"
-    }
-}
-
 def detect_primary_subject(title: str, text: str, sections: Optional[List[dict]] = None) -> Tuple[str, str]:
-    """Detects primary organ or domain: Title -> Headings -> Document Body."""
-    title_lower = (title or "").lower()
-    headings_lower = " ".join([s.get("title", "") or s.get("heading", "") for s in (sections or [])]).lower()
-    body_lower = (text or "").lower().replace("heart rate", "").replace("respiratory rate", "")
+    """Detects primary organ or topic subject dynamically from text content, title, or section headings."""
+    combined_content = f"{title or ''} {text or ''} "
+    if sections:
+        for s in sections:
+            if isinstance(s, dict):
+                combined_content += f" {s.get('title','')} {s.get('heading','')} {s.get('content','')} "
 
-    patterns = [
-        ("heart", "Heart", r"\b(heart|cardiac|cardiovascular|myocard|atrium|ventricle|aorta|coronary|pericard)\b"),
-        ("lungs", "Lungs", r"\b(lung|lungs|pulmon|respir|ards|asthma|copd|pneumonia|alveol|bronch)\b"),
-        ("kidney", "Kidneys", r"\b(kidney|renal|nephron|glomerul|aki|ckd|dialysis|creatinine|gfr)\b"),
-        ("liver", "Liver", r"\b(liver|hepatic|biliary|gallbladder|hepatitis|cirrhosis|bilirubin)\b"),
-        ("brain", "Brain", r"\b(brain|neuro|cerebr|cns|stroke|seizure|encephal|spinal cord|neuron)\b"),
-        ("stomach", "Stomach", r"\b(stomach|gastric|peptic|gerd|ulcer|digestive|gut|gi tract|duoden)\b"),
-        ("vessels", "Blood Vessels", r"\b(vessel|vascular|artery|vein|capillary|blood flow|circulation|dvt)\b"),
-        ("pharmacology", "Pharmacology", r"\b(pharmacolog|medication|drug|drugs|dosage|antibiotic|therapy)\b"),
+    content_lower = combined_content.lower()
+
+    organ_map = [
+        (["heart", "cardiac", "coronary", "myocard", "cardiovascular", "atrium", "ventricle", "valve", "aorta", "angina"], "heart", "Heart"),
+        (["lung", "respiratory", "ards", "pulmonary", "alveol", "pleura", "bronch"], "lungs", "Lungs"),
+        (["brain", "neuro", "cerebral", "stroke", "neuron", "cortex", "head"], "brain", "Brain"),
+        (["kidney", "renal", "nephro", "dialysis", "glomerul"], "kidney", "Kidney"),
+        (["liver", "hepatic", "cirrhosis", "gallbladder", "bile"], "liver", "Liver"),
+        (["stomach", "gastric", "gastro", "bowel", "colon", "gut"], "stomach", "Stomach"),
+        (["vessel", "vascular", "artery", "vein"], "blood_vessels", "Blood Vessels")
     ]
 
-    for key, name, regex in patterns:
-        if re.search(regex, title_lower):
-            return key, name
-    for key, name, regex in patterns:
-        if re.search(regex, headings_lower):
-            return key, name
-    for key, name, regex in patterns:
-        if re.search(regex, body_lower):
-            return key, name
-    return "heart", "Heart"
+    for keywords, slug, organ_name in organ_map:
+        if any(re.search(r'\b' + re.escape(k) + r'\b', content_lower) for k in keywords):
+            return slug, organ_name
 
-def resolve_visual_asset(subject: str, visual_type: str = "primary", is_medication: bool = False) -> str:
-    """Smart Asset Resolver with asset-first reuse logic."""
-    if is_medication:
-        return ASSET_CATALOG["pharmacology"].get(visual_type, "/assets/medication.jpg")
-    clean = (subject or "heart").lower().strip()
-    entry = ASSET_CATALOG.get(clean) or next((v for k, v in ASSET_CATALOG.items() if k in clean or clean in k), None)
-    if entry:
-        return entry.get(visual_type) or entry.get("primary") or "/assets/heart_3d_organ.png"
-    return "/assets/heart_3d_organ.png"
+    clean_title = (title or "").strip()
+    clean_title = re.sub(r'^\d+[\.\)]\s*', '', clean_title)
+    clean_title = re.sub(r'[\._\-]+', ' ', clean_title).strip()
+
+    if clean_title and not any(g in clean_title.lower() for g in ["page", "uploaded", "lecture", "document", "notes", "file", "slide"]):
+        slug = re.sub(r'[^a-z0-9]', '_', clean_title.lower()).strip('_')
+        return slug or "medical_concept", clean_title.title()
+
+    if sections:
+        for s in sections:
+            if isinstance(s, dict):
+                h = (s.get("title") or s.get("heading") or "").strip()
+                clean_h = re.sub(r'^\d+[\.\)]\s*', '', h).strip()
+                if clean_h and len(clean_h) < 40 and not any(g in clean_h.lower() for g in ["overview", "section", "page"]):
+                    slug = re.sub(r'[^a-z0-9]', '_', clean_h.lower()).strip('_')
+                    return slug or "medical_concept", clean_h.title()
+
+    return "medical_concept", "Clinical Concept"
+
+def check_generated_asset_cache(subject: str, visual_type: str = "") -> Optional[str]:
+    """Checks assets/generated folder for an existing matching generated image file."""
+    gen_dir = os.path.join(os.path.dirname(__file__), "assets", "generated")
+    if not os.path.exists(gen_dir):
+        return None
+    clean_subj = re.sub(r'[^a-z0-9]', '', (subject or "").lower())
+    clean_type = re.sub(r'[^a-z0-9]', '', (visual_type or "").lower())
+    
+    # Ignore generic page/uploaded dummy tokens
+    if any(g in clean_subj for g in ["page1", "uploadednotes", "manuallecturenotes"]):
+        clean_subj = ""
+
+    if not clean_subj:
+        return None
+    try:
+        files = os.listdir(gen_dir)
+        if clean_type:
+            for f in files:
+                if not f.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
+                    continue
+                f_clean = re.sub(r'[^a-z0-9]', '', f.lower())
+                if (clean_subj in f_clean or f_clean.startswith(clean_subj)) and clean_type in f_clean:
+                    return f"/assets/generated/{f}"
+            return None
+            
+        for f in files:
+            if not f.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
+                continue
+            f_clean = re.sub(r'[^a-z0-9]', '', f.lower())
+            if clean_subj in f_clean or f_clean.startswith(clean_subj):
+                return f"/assets/generated/{f}"
+    except Exception as e:
+        print(f"[Cache Search Error] {e}")
+    return None
+
+def resolve_visual_asset(subject: str, visual_type: str = "primary", is_medication: bool = False, text_context: str = "") -> Optional[str]:
+    """Returns None as pre-setup static images have been removed to prioritize dynamic document-specific image generation."""
+    return None
+
+def generate_medical_image(prompt: str, filename: str) -> Optional[str]:
+    """Calls OpenAI Image API to generate an educational medical illustration and saves to assets/generated/."""
+    key = os.getenv("OPENAI_API_KEY", "").strip().strip('"').strip("'")
+    if not key or key.startswith("sk-proj-placeholder"):
+        print("[Image Gen Notice] No valid OPENAI_API_KEY found.")
+        return None
+        
+    safe_filename = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', filename)
+    if not safe_filename.endswith(('.png', '.jpg')):
+        safe_filename += ".png"
+        
+    gen_dir = os.path.join(os.path.dirname(__file__), "assets", "generated")
+    os.makedirs(gen_dir, exist_ok=True)
+    file_path = os.path.join(gen_dir, safe_filename)
+    
+    if os.path.exists(file_path):
+        return f"/assets/generated/{safe_filename}"
+        
+    try:
+        import openai
+        import base64
+        import urllib.request
+        client = openai.OpenAI(api_key=key, timeout=120.0)
+        
+
+        response = None
+        for model in ["gpt-image-2"]:
+            try:
+                response = client.images.generate(
+                    model=model,
+                    prompt=prompt,
+                    n=1,
+                    size="1024x1024"
+                )
+                if response and response.data:
+                    print(f"[Image Gen Success via {model}] Generated image for: {filename}")
+                    break
+            except Exception as e:
+                print(f"[OpenAI Image Gen Model Notice ({model})] {e}")
+                
+        if response and response.data:
+            item = response.data[0]
+            if getattr(item, 'b64_json', None):
+                img_bytes = base64.b64decode(item.b64_json)
+                with open(file_path, "wb") as f:
+                    f.write(img_bytes)
+                print(f"[Image Gen Success] Saved generated image to {file_path}")
+                return f"/assets/generated/{safe_filename}"
+            elif getattr(item, 'url', None):
+                req = urllib.request.Request(item.url, headers={'User-Agent': 'Mozilla/5.0'})
+                with urllib.request.urlopen(req) as resp, open(file_path, "wb") as f:
+                    f.write(resp.read())
+                print(f"[Image Gen Success from URL] Saved generated image to {file_path}")
+                return f"/assets/generated/{safe_filename}"
+    except Exception as e:
+        print(f"[Image Gen Exception] {e}")
+        
+    return None
+
+def extract_visual_requirements(doc_title: str, raw_text: str, sections: Optional[List[dict]] = None) -> List[dict]:
+    """Generates structured visual requirements grounded strictly in document content."""
+    doc_subject, doc_organ_name = detect_primary_subject(doc_title, raw_text, sections)
+    text_lower = (raw_text or "").lower()
+    title_lower = (doc_title or "").lower()
+    
+    requirements = []
+    
+    # 1. Organ / Primary Subject
+    requirements.append({
+        "type": "organ",
+        "subject": doc_organ_name,
+        "purpose": f"Show anatomical structure of the {doc_organ_name} relevant to the document",
+        "required": True
+    })
+    
+    # 2. Anatomy / Structure
+    has_anatomy = any("anatomy" in (s.get("heading","") or s.get("title","")).lower() for s in (sections or [])) or "anatomy" in text_lower
+    requirements.append({
+        "type": "anatomy",
+        "subject": f"{doc_organ_name} Anatomy",
+        "purpose": f"Show detailed internal anatomy and cross-section structure of {doc_organ_name}",
+        "required": True if has_anatomy or doc_organ_name else False
+    })
+    
+    # 3. Medication / Treatment
+    med_keywords = ["medication", "drug", "drugs", "treatment", "pharmacology", "therapy", "beta blocker", "insulin", "antibiotic", "dosage", "prescription", "inhibitor", "agonist", "antagonist"]
+    has_medication = any(re.search(r'\b' + re.escape(k) + r'\b', text_lower) for k in med_keywords) or any(re.search(r'\b' + re.escape(k) + r'\b', title_lower) for k in med_keywords)
+    
+    requirements.append({
+        "type": "medication",
+        "subject": f"{doc_organ_name} Treatment" if has_medication else "Medication",
+        "purpose": "Show treatment or pharmacological action discussed in document" if has_medication else "N/A",
+        "required": True if has_medication else False
+    })
+    
+    return requirements
+
+def build_image_prompt(requirement: dict, document_context: str = "") -> str:
+    """Builds a focused, document-grounded image generation prompt."""
+    v_type = requirement.get("type", "organ")
+    if v_type in ["pathway", "flowchart", "pathophysiology"]:
+        return ""
+    subject = requirement.get("subject", "Human Anatomy")
+    purpose = requirement.get("purpose", "Show anatomical structure")
+    sec_text = requirement.get("section_text", "")
+    doc_topic = requirement.get("doc_topic", "Clinical Subject")
+    
+    context_snippet = f" Section Details: {sec_text[:250]}." if sec_text else ""
+
+    if v_type == "overview":
+        prompt = (
+            f"Create a clean, medically accurate visual image related to the disease or condition "
+            f"'{doc_topic}' ({subject}). "
+            f"Show only the most relevant organ, body part, or physical medical subject from the uploaded document. "
+            f"Purpose: {purpose}.{context_snippet} "
+            f"Image only. No text, no labels, no captions, no title, no explanation, no infographic, "
+            f"no arrows, no diagrams, no annotations. "
+            f"Clean medical textbook visual, realistic 3D medical illustration, white background."
+        )
+
+    elif v_type == "anatomy":
+        prompt = (
+            f"Create a medically accurate anatomical image of {subject}. "
+            f"Purpose: {purpose}.{context_snippet} "
+            f"Show only the relevant organ or body part and its visible internal anatomical structures. "
+            f"Image only. No text, no labels, no captions, no title, no explanation, no annotations, "
+            f"no arrows, no infographic. "
+            f"Clean medical textbook anatomical illustration, white background."
+        )
+
+    elif v_type == "medication":
+        prompt = (
+            f"Create a clean medical image showing medication relevant to {subject}. "
+            f"Purpose: {purpose}.{context_snippet} "
+            f"Show only appropriate medicine such as tablets, capsules, pills, medication bottles, "
+            f"vials, or syringes when relevant to the document. "
+            f"Image only. No text, no drug names, no labels, no captions, no title, no explanation, "
+            f"no mechanism diagram, no infographic. "
+            f"Clean realistic medical study image, white background."
+        )
+
+    elif v_type == "symptoms":
+        prompt = (
+            f"Create a clean medically accurate visual showing the physical manifestation or clinical "
+            f"symptoms associated with {subject}. "
+            f"Purpose: {purpose}.{context_snippet} "
+            f"Visually represent the outward clinical signs and physical manifestations. "
+            f"Image only. No text, no labels, no captions, no title, no explanation, no annotations, "
+            f"no arrows, no infographic layout. "
+            f"Clean medical textbook clinical photography or realistic illustration, white background."
+        )
+
+    elif v_type == "diagnostic":
+        prompt = (
+            f"Create a clean medical study visual showing diagnostic workup or test equipment relevant to {subject}. "
+            f"Purpose: {purpose}.{context_snippet} "
+            f"Show only relevant diagnostic equipment, lab test tubes, ECG tracing style monitor, or radiological scan screen. "
+            f"Image only. No text, no numbers, no fake values, no labels, no captions, no title, "
+            f"no explanation, no infographic layout. "
+            f"Clean realistic medical visual, white background."
+        )
+
+    elif v_type == "treatment":
+        prompt = (
+            f"Create a clean medical visual showing treatment or clinical intervention for {subject}. "
+            f"Purpose: {purpose}.{context_snippet} "
+            f"Show clinical equipment, supportive care setting, or appropriate medical devices. "
+            f"Image only. No text, no labels, no captions, no title, no explanation, no annotations, "
+            f"no arrows, no infographic. "
+            f"Clean medical study visual, white background."
+        )
+
+    elif v_type == "risk":
+        prompt = (
+            f"Create a clean medical visual representation of risk factors or etiology associated with {subject}. "
+            f"Purpose: {purpose}.{context_snippet} "
+            f"Show relevant biological or environmental factor imagery cleanly. "
+            f"Image only. No text, no labels, no captions, no title, no explanation, no infographic. "
+            f"Clean medical illustration, white background."
+        )
+
+    else:
+        prompt = (
+            f"Create a clean, medically accurate educational visual for {subject}. "
+            f"Purpose: {purpose}.{context_snippet} "
+            f"Image only. No text, no labels, no captions, no title, no explanation, no annotations, "
+            f"no arrows, no diagrams, no infographic. "
+            f"Clean medical illustration, white background."
+        )
+
+    return prompt
+
+def resolve_or_generate_visual(requirement: dict, raw_text: str = "", filename: str = "") -> Tuple[Optional[str], bool, bool]:
+    """
+    Pipeline:
+    1. Check if document-specific generated asset exists in assets/generated/
+    2. Call OpenAI DALL-E API if API key exists to generate NEW document-specific visual and save to assets/generated/{unique_filename}
+    3. Fallback to matching cached asset or static asset if available
+    Returns: (asset_url, generated, reused)
+    """
+    subject = requirement.get("subject", "")
+    v_type = requirement.get("type", "primary")
+    is_req = requirement.get("required", True)
+    sec_title_low = (requirement.get("section_title") or requirement.get("title") or "").lower()
+    
+    # Pathophysiology / Pathway cards are rendered as icon-based step flows; no image generation needed
+    if not is_req or v_type in ["pathway", "flowchart", "pathophysiology"] or any(k in sec_title_low for k in ["patho", "pathway", "flowchart", "mechanism"]):
+        return (None, False, False)
+        
+    clean_fn = os.path.splitext(os.path.basename(filename))[0] if filename else ""
+    doc_slug = re.sub(r'[^a-z0-9]', '_', clean_fn.lower()).strip('_') if clean_fn else ""
+    doc_slug = re.sub(r'_+', '_', doc_slug)
+    
+    # Filter out journal metadata stamps or generic dummy tags
+    if any(k in doc_slug for k in ["ajphi", "volume", "page_1", "page1", "uploaded_notes", "manual_lecture"]):
+        doc_slug = ""
+    
+    # Clean card / section name
+    raw_sec_name = requirement.get("section_title") or requirement.get("title") or ""
+    raw_sec_name = re.sub(r'^\d+[\.\)]\s*', '', raw_sec_name).strip()
+    sec_slug = re.sub(r'[^a-z0-9]', '_', raw_sec_name.lower()).strip('_') if raw_sec_name else ""
+    sec_slug = re.sub(r'_+', '_', sec_slug)
+    
+    # Prioritize section title slug, fallback to visual type (e.g. overview, symptoms, anatomy)
+    card_name = sec_slug or v_type or "visual"
+    if len(card_name) > 30:
+        card_name = card_name[:30].rstrip('_')
+
+    subj_slug = re.sub(r'[^a-z0-9]', '_', (subject or "").lower()).strip('_')
+    subj_slug = re.sub(r'_+', '_', subj_slug)
+    
+    if doc_slug:
+        safe_name = f"{doc_slug}_{card_name}.png"
+    else:
+        prefix = subj_slug[:30] if subj_slug else "medical_visual"
+        safe_name = f"{prefix}_{card_name}.png"
+        
+    gen_dir = os.path.join(os.path.dirname(__file__), "assets", "generated")
+    file_path = os.path.join(gen_dir, safe_name)
+    
+    # 1. Check if document-specific generated file exists
+    if os.path.exists(file_path):
+        return (f"/assets/generated/{safe_name}", False, True)
+        
+    # 1b. Check if asset exists by visual type or subject in cache
+    cached_asset = check_generated_asset_cache(doc_slug or subj_slug or subject, v_type)
+    if cached_asset:
+        return (cached_asset, False, True)
+        
+    # 2. Generate new image with OpenAI API
+    prompt = build_image_prompt(requirement, raw_text)
+    gen_url = generate_medical_image(prompt, safe_name)
+    if gen_url:
+        return (gen_url, True, False)
+        
+    # 3. No fallback to pre-setup static images (strictly document-generated visuals)
+    return (None, False, False)
 
 
 # --- AI System Prompts ---
-MEDICAL_STUDY_NOTES_ARCHITECT_PROMPT = """# MEDICAL DOCUMENT → ORIGINAL NOTES + VISUAL NOTES
-You are an expert AI Medical Visual Notes Architect.
-RULES:
-1. SOURCE FIDELITY & STRICT VERBATIM EXTRACTION:
-   - The user's document is 100% the primary source of truth. Zero hallucinations or fake facts.
-   - For all cards except Anatomy, extract text EXCLUSIVELY and VERBATIM from the uploaded document text.
-2. STRICT SECTION BOUNDARIES & NO DATA LEAKAGE:
-   - CARD 1 (OVERVIEW): Must contain ONLY general definitions and high-level introduction points. DO NOT include Pathophysiology steps, Diagnostic findings, or Nursing details inside Overview.
-   - CARD 2 (ANATOMY): If the document lacks an Anatomy section, provide standard anatomical facts for the organ so the card is not empty. If the document has an Anatomy section, use its exact text.
-   - CARD 3 (PATHOPHYSIOLOGY / PATHWAY): Extract the step-by-step disease mechanism DIRECTLY from the Pathophysiology section of the document. Build 'flows' with step 'name' and 'subtext' from the real document text.
-   - CARD 4+ (DIAGNOSTIC, NURSING INTERVENTIONS, STAGES, TREATMENT, etc.): Create a separate card for EVERY major top-level section heading present in the document. DO NOT OMIT OR MERGE STAGES OR PHASES!
-3. CARD LAYOUT:
-   - ROW 1: [ CARD 1 (Overview + Organ 3D Visual) ] [ CARD 2 (Anatomy + Cross-Section Visual) ]
-   - ROW 2: [ CARD 3 — FULL WIDTH (Pathway/Flowchart with steps & arrows, extracted from document) ]
-   - ROW 3+: [ CARD 4 ] [ CARD 5 ] ... (2 cards per row for remaining source document sections)
+DOCUMENT_ANALYSIS_ORIGINAL_NOTE_PROMPT = """You are building the document-analysis engine for a medical/healthcare-focused study notes application.
 
-RETURN VALID JSON:
+The user may upload ANY supported document format, including:
+* PDF
+* DOC/DOCX
+* TXT
+* Markdown
+* Image
+* Scanned document
+* Screenshot
+* Other supported document formats
+
+Your job is to analyze the uploaded material FIRST, understand what it is actually about, extract the important information, summarize it accurately, and then organize the original document content into MUST BE between 6 and 8 intelligent sections.
+
+Do NOT blindly use a fixed template. The uploaded document is the ONLY source of truth.
+
+---
+
+# CORE OBJECTIVE
+1. Detect file/content type & extract text / OCR.
+2. Understand document: identify primary topic, document type (disease/condition, medication, procedure, lab test, anatomy, nursing topic, physiology, pathology, treatment, clinical concept, etc.).
+3. Extract important information matching CONTENT PRIORITIES (Diseases, Medications, Procedures, Labs).
+4. Apply PRIORITIZATION LOGIC (topic emphasis, depth of explanation, clinical importance, exam/revision value).
+5. Generate MUST HAVE between 6 and 8 dynamic note sections.
+6. Return structured JSON with original note content organized into 6 to 8 sections.
+
+---
+
+# STEP 1 — UNDERSTAND THE DOCUMENT FIRST
+Internally analyze:
 {
-  "header": {"title": "Document Title", "subtitle": "AI-converted Visual Study Notes", "topic": "Main Topic"},
+  "document_topic": "",
+  "document_type": "",
+  "primary_subject": "",
+  "related_organs": [],
+  "related_medications": [],
+  "related_procedures": [],
+  "related_laboratory_tests": [],
+  "major_concepts": [],
+  "has_pathophysiology": false,
+  "has_treatment": false,
+  "has_medication": false,
+  "has_diagnostic_information": false
+}
+
+---
+
+# STEP 2 — CONTENT PRIORITIES
+Look for content matching:
+A. DISEASES & CONDITIONS: Definition, Pathophysiology, Causes/Risk factors, Signs & symptoms, Assessment, Diagnostic tests, Labs, Complications, Medical management, Nursing interventions, Patient education, Red flags, Exam tips, Memory aid.
+B. MEDICATIONS: Generic name, Brand name (if in doc), Class, Indications, Mechanism of action, Route, Side effects, Adverse effects, Contraindications, Precautions, Interactions, Monitoring, Lab values, Nursing considerations, Patient teaching.
+C. PROCEDURES: Purpose, Indications, Preparation, Equipment, Steps, Nursing responsibilities, Monitoring, Complications, Post-care, Teaching, Safety alerts.
+D. LABORATORY VALUES: Test name, What it measures, Reference range, Meaning of high/low, Nursing considerations, Urgent findings.
+
+---
+
+# STEP 3 — PRIORITIZATION LOGIC
+Do NOT treat all information equally. Focus on topics with the most explanation, detail, repetition, clinical importance, and study value.
+
+---
+
+# STEP 4 — REQUIRED SECTION 1: Overview
+Always Section 1: Overview. Answer "What is this document actually about?" in 3 to 5 concise bullet points based on content richness (4-5 points for detailed documents, 3 points for concise ones; MAXIMUM 5 points). Each bullet point MUST contain between 20 and 30 words.
+
+---
+
+# STEP 5 — REQUIRED SECTION 2: Anatomy of the {Organ/Body Part}
+Include Section 2: "Anatomy of the {Organ}" ONLY when document relates to an organ/body part (e.g. Heart, Kidney, Liver, Brain, Lungs). Provide 3 to 5 points directly relevant to document depending on detail available (maximum 5 points). Omit if no organ relationship exists.
+
+---
+
+# STEP 6 — PATHOPHYSIOLOGY (CONDITIONAL)
+Include Section 3: "Pathophysiology" when document contains biological disease mechanisms, physiological changes, or cause->effect processes. Represent as step-by-step flow (Risk factor -> Physiological change -> Pathological change -> Dysfunction -> Symptoms -> Complications). Do NOT generate or require an image for Pathophysiology as it is presented directly as an icon-based step flowchart in the UI. Omit if missing.
+
+---
+
+# DYNAMIC CARD POINT COUNT (3 TO 5 POINTS PER CARD - HIGHEST 5)
+Each section card MUST dynamically contain between 3 and 5 items/bullet points based on the amount of information in the document for that topic. NEVER fix every card to 3 points. If a section has rich detailed information in the uploaded document, provide 4 or 5 points (maximum 5 points). If concise, provide 3 points (minimum 3 points).
+
+---
+
+# STRICT CONSTRAINT: MUST CONTAIN 6 TO 8 SECTIONS
+The 'sections' array MUST contain between 6 and 8 sections. Never less than 6 (if info permits), never more than 8. Do NOT create empty sections. Do NOT invent fake information. Preserve numbers, lab values, drug names, and clinical meaning.
+
+---
+
+# OUTPUT JSON SCHEMA
+Return valid JSON ONLY matching:
+{
+  "document_analysis": {
+    "title": "Document Title",
+    "topic": "Primary Topic",
+    "document_type": "disease | medication | procedure | lab | anatomy | nursing_topic | general",
+    "primary_subject": "Primary Subject",
+    "organ": "Organ Name or empty",
+    "has_pathophysiology": true,
+    "key_terms_focused": ["Term1", "Term2", "Term3"]
+  },
+  "sections": [
+    {
+      "section_number": 1,
+      "title": "Overview",
+      "type": "overview",
+      "priority_source": "General Overview",
+      "content": [
+        "Point 1: Main topic definition and primary biological mechanisms.",
+        "Point 2: Key clinical risk factors and population prevalence indicators.",
+        "Point 3: Primary diagnostic features and hallmark symptom presentation.",
+        "Point 4: High-priority therapeutic goals and patient safety considerations.",
+        "Point 5: Critical nursing interventions and long-term care management."
+      ],
+      "visual": {
+        "required": false,
+        "type": "organ",
+        "subject": "Organ Name",
+        "purpose": "Overview anatomical visualization"
+      }
+    },
+    {
+      "section_number": 2,
+      "title": "Anatomy / Core Structure",
+      "type": "anatomy",
+      "priority_source": "Anatomy",
+      "content": [
+        "Point 1: Primary organ anatomy and vascular supply.",
+        "Point 2: Microscopic cellular structure and tissue arrangement.",
+        "Point 3: Functional anatomical zones and physiological roles.",
+        "Point 4: Surrounding structural landmarks and innervation."
+      ],
+      "visual": {
+        "required": true,
+        "type": "anatomy",
+        "subject": "Anatomy",
+        "purpose": "Anatomical cross section"
+      }
+    },
+    {
+      "section_number": 3,
+      "title": "Pathophysiology",
+      "type": "pathophysiology",
+      "priority_source": "Pathophysiology",
+      "flow": [
+        { "step": 1, "title": "Insult / Trigger", "description": "Details" },
+        { "step": 2, "title": "Pathological Response", "description": "Details" },
+        { "step": 3, "title": "Tissue Dysfunction", "description": "Details" },
+        { "step": 4, "title": "Clinical Complications", "description": "Details" }
+      ],
+      "visual": {
+        "required": false,
+        "type": "none",
+        "subject": "",
+        "purpose": "Presented via icon-based step flowchart; no image required."
+      }
+    },
+    {
+      "section_number": 4,
+      "title": "Signs & Symptoms",
+      "type": "dynamic",
+      "priority_source": "Diseases and Conditions",
+      "content": [
+        "Point 1: Primary cardinal symptom and early clinical signs.",
+        "Point 2: Secondary systemic manifestations and lab alerts.",
+        "Point 3: Late-stage progression indicators and severe red flags.",
+        "Point 4: Differential diagnostic symptoms and physical exam findings.",
+        "Point 5: Patient-reported subjective symptoms and functional impact."
+      ],
+      "visual": {
+        "required": false,
+        "type": "diagram",
+        "subject": "Symptoms",
+        "purpose": "Visual aid"
+      }
+    }
+  ]
+}
+"""
+
+MEDICAL_STUDY_NOTES_ARCHITECT_PROMPT = """You are Nursing Study Sheet Architect, an educational content and visual-layout assistant for nursing students.
+
+Your job is to transform raw study material into a clear, accurate, visually structured nursing study sheet suitable for rendering as a mobile study card, printable infographic, PNG, or PDF.
+
+Your responsibilities are to:
+1. Understand and organize the uploaded material.
+2. Preserve the meaning of the source notes.
+3. Correct obvious spelling, grammar, formatting, and OCR errors.
+4. Identify the most educationally important concepts.
+5. Convert the content into concise nursing-student language.
+6. Create a logical visual hierarchy.
+7. Recommend suitable icons, diagrams, flowcharts, tables, and illustrations.
+8. Produce structured output that a rendering engine can reliably convert into an infographic.
+9. Clearly distinguish source-supported content from supplemental educational context.
+10. Avoid inventing unsupported medical facts.
+
+PRIMARY GOAL:
+Create a high-yield nursing study sheet that is accurate, easy to scan, visually organized, useful for exams/clinical review, appropriate for nursing students, faithful to uploaded notes, and safe for educational use.
+
+SUMMARY & CARD CONSTRAINTS:
+1. SUMMARIZE THE DOCUMENT FIRST: Populate the "summary" field with a 1-sentence executive overview ("one_sentence_overview") and 3 to 6 high-yield core points ("high_yield_points").
+2. MAXIMUM 8 PRIMARY SECTION CARDS: Return a MAXIMUM of 8 primary section cards in the "sections" array (highest 8 cards).
+3. DYNAMIC POINTS PER CARD (3 TO 5 POINTS): Each card MUST dynamically contain between 3 and 5 items/points based on document detail (never fix to 3 points for all cards). Minimum 3 points, maximum 5 points per card.
+4. CONTENT PRIORITIES: Organize sections using high-yield categories such as:
+   - Disease/Condition: Definition/Overview, Pathophysiology, Causes/Risk Factors, Signs & Symptoms, Diagnostic Workup/Labs, Complications, Medical Management, Nursing Interventions, Patient Education, Red Flags.
+   - Medications: Generic/Brand Name, Class, Indications, Mechanism, Route, Side Effects/Adverse Effects, Contraindications, Nursing Considerations, Teaching.
+   - Procedures: Purpose, Indications, Preparation, Main Steps, Nursing Responsibilities, Complications.
+   - Lab Values: Test Name, Measurement, Reference Range, High/Low Meanings, Nursing Considerations.
+
+OUTPUT REQUIREMENTS:
+Return valid JSON ONLY matching this exact schema:
+
+{
+  "document": {
+    "title": "string",
+    "subtitle": "string",
+    "topic_type": "medication | disease | procedure | lab | comparison | mixed",
+    "student_level": "beginner | intermediate | advanced | unspecified",
+    "layout_type": "medication_card | disease_overview | comparison_chart | procedure_guide | lab_reference | concept_map | multi_page_study_pack",
+    "page_size": "mobile_portrait | a4_portrait | letter_portrait | landscape",
+    "estimated_pages": 1,
+    "educational_disclaimer": "Educational study support material. Follow facility policy and provider orders."
+  },
+  "summary": {
+    "one_sentence_overview": "string (no more than 35 words)",
+    "high_yield_points": [
+      "string (3 to 6 high-yield bullet points)"
+    ]
+  },
   "sections": [
     {
       "id": "section_1",
-      "title": "SECTION TITLE IN UPPERCASE",
       "heading": "SECTION TITLE IN UPPERCASE",
-      "type": "tagged_items | flowchart",
+      "title": "SECTION TITLE IN UPPERCASE",
       "section_type": "tagged_items | flowchart",
-      "bullets": ["Bullet point text"],
-      "items": [{"label": "Badge Title", "text": "Detail text"}],
-      "flows": [{"label": "PATHWAY NAME", "steps": [{"name": "Step Title", "subtext": "Step Details"}]}],
-      "image": "/assets/...",
-      "accent": "blue | red | purple | green | amber"
+      "type": "tagged_items | flowchart",
+      "priority": "essential | important | supplemental",
+      "origin": "source | supplemental | inferred",
+      "items": [
+        {
+          "label": "Badge / Subhead Title",
+          "text": "Concise key point text",
+          "emphasis": "normal | key | warning | red_flag",
+          "origin": "source | supplemental | inferred"
+        }
+      ],
+      "flows": [
+        {
+          "label": "PATHWAY NAME",
+          "steps": [
+            { "name": "STEP TITLE", "subtext": "Step details" }
+          ]
+        }
+      ]
     }
   ],
-  "bottom_panels": {
-    "clinical_tip": {"title": "Clinical Tip", "text": "Consideration text"},
-    "remember_mnemonic": {"title": "Remember", "text": "Mnemonic summary"}
+  "exam_support": {
+    "memory_aid": {
+      "title": "string",
+      "content": "string",
+      "is_source_supported": true
+    },
+    "exam_tips": [
+      {
+        "tip": "string",
+        "origin": "source | supplemental | inferred"
+      }
+    ]
+  },
+  "safety_panel": {
+    "red_flags": [
+      "string"
+    ],
+    "medication_safety_notes": [
+      "string"
+    ]
   }
-}"""
+}
+"""
 
 SYSTEM_PROMPT = MEDICAL_STUDY_NOTES_ARCHITECT_PROMPT
 
 
+
 # --- Deterministic Parser (1:1 Source Fidelity) ---
+def clean_raw_text_metadata(raw_text: str) -> str:
+    """Removes raw PDF journal headers, volume stamps, author names, repetitive title prefixes, and reference lists."""
+    if not raw_text:
+        return ""
+    
+    # Remove journal volume stamps and repetitive metadata lines from text body
+    text = re.sub(r'AJPHI\s*[|I]\s*VOLUME\s*\d+\s*[|I]\s*\d{4}\s*(?:ORIGINAL ARTICLE)?', '', raw_text, flags=re.I)
+    text = re.sub(r'The\s+American\s+Journal\s+of\s+Patient\s+Health\s+Info\s*:\s*\d{4}', '', text, flags=re.I)
+    text = re.sub(r'AJPHI\s+I\s+VOLUME\s+\d+\s+I\s+\d{4}', '', text, flags=re.I)
+
+    lines = text.split('\n')
+    clean_lines = []
+    in_references = False
+    for line in lines:
+        s = line.strip()
+        if not s:
+            continue
+        if re.search(r'\b(AJPHI|VOLUME\s+\d+|ORIGINAL ARTICLE|Journal of Patient Health|ISSN|DOI|Published by|Available from:)\b', s, re.I):
+            continue
+        if re.search(r'\b(MD\s+[a-z]|University of|Hospital|Department of|Faculty of)\b', s, re.I) and len(s) < 140:
+            continue
+        if re.match(r'^(?:References|BIBLIOGRAPHY|Citations)\b', s, re.I):
+            in_references = True
+            continue
+        if in_references:
+            continue
+        # Remove trailing/leading bullet junk or repetitive title prefixes
+        s = re.sub(r'^[A-Z0-9\s_\-]{15,80}\s*OVERVIEW\s*:\s*', '', s, flags=re.I)
+        clean_lines.append(s)
+    return "\n".join(clean_lines)
+
 def clean_heading_title(line: str) -> str:
     return re.sub(r'^(?:[0-9]+[\.\)]|#{1,6}\s+|[IVXLCDM]+[\.\)])\s*', '', line).strip(':').strip()
 
 def is_major_heading(line: str) -> bool:
-    """Accurately detects ONLY true top-level section headers, avoiding false card splits on sub-bullets."""
+    """Accurately detects true top-level section headers including domain title matches."""
     stripped = line.strip()
     if not stripped:
         return False
 
-    # 1. Explicitly numbered/lettered/markdown section headings: "1. ...", "1) ...", "I. ...", "A. ...", "## ..."
     if re.match(r'^(?:[0-9]+[\.\)]|#{1,6}\s+|[IVXLCDM]+[\.\)]|[A-Z][\.\)])\s+[A-Za-z]', stripped):
         return True
 
-    # Strip bullets & leading symbols
     clean = re.sub(r'^[•\-\*\→●▪■◆➢►○✔✓]\s*', '', stripped)
     clean = re.sub(r'^(?:[0-9]+[\.\)]|#{1,6}\s+|[IVXLCDM]+[\.\)])\s*', '', clean).strip(':').strip()
     clean_lower = clean.lower()
 
-    if not clean or '→' in clean or '->' in clean or len(clean) > 60:
+    if not clean or '→' in clean or '->' in clean or len(clean) > 75:
         return False
 
-    # Skip sentence narrative text ending with periods
-    if clean.endswith(('.', '?', ';')) and len(clean.split()) > 3:
+    if clean.endswith(('.', '?', ';')) and len(clean.split()) > 4:
         return False
 
-    # Strict top-level section domain titles ONLY
-    top_level_headings = [
-        "overview", "definition", "introduction", "what is it",
+    heading_keywords = [
+        "overview", "definition", "introduction", "background", "demystified",
         "anatomy", "structure", "physiology",
-        "pathophysiology", "pathophysiology pathway", "pathway", "mechanism", "pathogenesis",
-        "causes", "cause", "etiology", "risk factors",
-        "diagnostic workup", "diagnostics", "diagnostic", "labs", "laboratory", "evaluation", "assessment",
-        "stages and phases", "stages & phases", "stages", "phases", "staging", "classification",
-        "clinical manifestations", "manifestations", "signs & symptoms", "signs and symptoms",
-        "nursing interventions", "nursing care", "interventions",
-        "treatment and medications", "treatment & medications", "treatment", "management", "pharmacology", "medications",
-        "complications", "prevention"
+        "pathophysiology", "pathway", "mechanism", "pathogenesis",
+        "risk factor", "cause", "etiology", "risk factors", "modifiable risk", "non-modifiable risk",
+        "clinical presentation", "manifestation", "signs & symptoms", "signs and symptoms", "symptom", "discomfort",
+        "diagnostic", "diagnosis", "test", "lab", "evaluation", "assessment", "angiogram", "catheterization", "echocardiogram",
+        "treatment", "management", "pharmacology", "medication", "drug", "antiplatelet", "statin", "surgical", "procedure",
+        "nursing", "intervention", "patient education", "complication", "prevention", "red flag"
     ]
 
-    for th in top_level_headings:
-        if clean_lower == th or clean_lower == f"{th}:":
+    for th in heading_keywords:
+        if th in clean_lower and len(clean_lower) < 65:
             return True
 
-    # Standalone major title with clear heading prefix/formatting
     if re.match(r'^(?:SECTION|PART|CHAPTER|UNIT)\s+\d+', clean, re.I):
         return True
 
@@ -531,11 +1039,10 @@ def sanitize_and_group_sections(sections: List[dict]) -> List[dict]:
         canonical_title = clean_title.upper()
         if canonical_title.strip() in ["OVERVIEW", "DOCUMENT OVERVIEW", "TOPIC OVERVIEW"]:
             canonical_title = "OVERVIEW"
-        elif canonical_title.strip() in ["TREATMENT", "MEDICATIONS", "MEDICATION", "PHARMACOLOGY", "TREATMENT AND MEDICATIONS", "TREATMENT & MEDICATIONS", "MANAGEMENT"]:
-            canonical_title = "TREATMENT & MEDICATIONS"
 
         if canonical_title not in grouped:
             sec_type = sec.get("type") or sec.get("section_type") or "tagged_items"
+            sec_img = sec.get("image") or sec.get("image_url") or (sec.get("visual", {}).get("image_url") if isinstance(sec.get("visual"), dict) else "") or ""
             grouped[canonical_title] = {
                 "id": sec.get("id") or f"section_{uuid.uuid4().hex[:6]}",
                 "title": canonical_title,
@@ -547,13 +1054,22 @@ def sanitize_and_group_sections(sections: List[dict]) -> List[dict]:
                 "items": [],
                 "flows": list(sec.get("flows") or []),
                 "accent": sec.get("accent") or accents_cycle[len(grouped) % len(accents_cycle)],
-                "image": sec.get("image") or ""
+                "image": sec_img,
+                "image_url": sec_img,
+                "visual": sec.get("visual") or None
             }
             if sec.get("isAnatomyCard"):
                 grouped[canonical_title]["isAnatomyCard"] = True
             if sec.get("organ_type"):
                 grouped[canonical_title]["organ_type"] = sec.get("organ_type")
             ordered_keys.append(canonical_title)
+        else:
+            sec_img = sec.get("image") or sec.get("image_url") or (sec.get("visual", {}).get("image_url") if isinstance(sec.get("visual"), dict) else "") or ""
+            if not grouped[canonical_title].get("image") and sec_img:
+                grouped[canonical_title]["image"] = sec_img
+                grouped[canonical_title]["image_url"] = sec_img
+                if sec.get("visual"):
+                    grouped[canonical_title]["visual"] = sec.get("visual")
 
         card = grouped[canonical_title]
         title_lower = canonical_title.lower()
@@ -615,265 +1131,26 @@ def build_modular_visual_dashboard_schema(filename: str, raw_text: str, parsed_a
     doc_subject, doc_organ_name = detect_primary_subject(topic_name, raw_text)
     dynamic_sections = parse_dynamic_sections_from_text(raw_text, topic_name)
 
-    # Combine AI-generated sections with dynamic sections to ensure NO section heading is ever lost or omitted
+    # Use AI-parsed / Original Note sections directly when present to ensure 1:1 card mapping
     if parsed_ai and isinstance(parsed_ai, dict) and "sections" in parsed_ai:
-        ai_secs = parsed_ai.get("sections") or []
-        ai_titles_clean = {re.sub(r'^\d+[\.\)]\s*', '', (s.get("title") or s.get("heading") or "")).strip().lower() for s in ai_secs if isinstance(s, dict)}
-        for dsec in dynamic_sections:
-            d_title_clean = re.sub(r'^\d+[\.\)]\s*', '', (dsec.get("title") or dsec.get("heading") or "")).strip().lower()
-            if "overview" in d_title_clean:
-                d_title_clean = "overview"
-            if d_title_clean and not any((t == d_title_clean or (t in d_title_clean and len(t) > 3) or (d_title_clean in t and len(d_title_clean) > 3)) for t in ai_titles_clean):
-                ai_secs.append(dsec)
-                ai_titles_clean.add(d_title_clean)
-        sections_to_use = ai_secs
+        sections_to_use = list(parsed_ai.get("sections") or [])
     else:
         sections_to_use = dynamic_sections
 
-    DEFAULT_ANATOMY_ITEMS = {
-        "lungs": [
-            {"label": "PRIMARY STRUCTURE", "text": "Paired respiratory organs in thoracic cavity separated by mediastinum."},
-            {"label": "ALVEOLAR MEMBRANE", "text": "Alveoli capillaries form thin membrane for O2 & CO2 gas exchange."},
-            {"label": "SURFACTANT LAYER", "text": "Phospholipid lining reducing surface tension to prevent atelectasis."},
-            {"label": "PLEURAL SPACE", "text": "Visceral & parietal pleura lubricated by serous fluid for smooth lung expansion."}
-        ],
-        "heart": [
-            {"label": "MYOCARDIUM", "text": "Thick muscular middle layer driving systemic & pulmonary circulation."},
-            {"label": "FOUR CHAMBERS", "text": "Right/Left Atria and Ventricles regulating unidirectional blood flow."},
-            {"label": "VALVULAR APPARATUS", "text": "Atrioventricular & semilunar valves preventing retrograde blood flow."},
-            {"label": "PERICARDIAL SAC", "text": "Double-walled sac protecting cardiac tissue & cushioning movement."}
-        ],
-        "kidney": [
-            {"label": "NEPHRON UNITS", "text": "Functional units filtering metabolic wastes & maintaining fluid balance."},
-            {"label": "GLOMERULUS", "text": "Capillary bed performing high-pressure blood plasma filtration."},
-            {"label": "RENAL CORTEX & MEDULLA", "text": "Outer filtration layer & inner pyramid region concentrating urine."},
-            {"label": "JUXTAGLOMERULAR APPARATUS", "text": "Regulates blood pressure via renin secretion and sodium balance."}
-        ],
-        "liver": [
-            {"label": "HEPATIC LOBULES", "text": "Functional units processing nutrients, toxins, and bile synthesis."},
-            {"label": "HEPATOCYTES & SINUSOIDS", "text": "Primary metabolic cells exchanging nutrients with portal circulation."},
-            {"label": "BILIARY TREE", "text": "Duct system collecting and transporting bile for lipid digestion."},
-            {"label": "KUPFFER CELLS", "text": "Specialized hepatic macrophages clearing pathogens & cell debris."}
-        ],
-        "brain": [
-            {"label": "CEREBRAL CORTEX", "text": "Outer neural layer responsible for memory, reasoning, language, and sensory integration."},
-            {"label": "BRAINSTEM & CNS", "text": "Regulates autonomic functions (respiration, cardiac rhythm, vasomotor control) with spinal cord."},
-            {"label": "MOTOR & SENSORY PATHWAYS", "text": "Coordinates voluntary/involuntary motor movements & interprets somatic sensory inputs."},
-            {"label": "BLOOD-BRAIN BARRIER", "text": "Selective endothelial barrier protecting brain tissue & maintaining neural homeostasis."}
-        ],
-        "stomach": [
-            {"label": "GASTRIC MUCOSA", "text": "Parietal & chief cells secreting HCl acid & pepsinogen for digestion."},
-            {"label": "MUSCULARIS EXTERNA", "text": "Three smooth muscle layers enabling churning & mechanical breakdown."},
-            {"label": "PYLORIC SPHINCTER", "text": "Regulates controlled passage of acidic chyme into duodenum."},
-            {"label": "RUGAE FOLDS", "text": "Mucosal folds allowing gastric expansion during fluid/food intake."}
-        ],
-        "vessels": [
-            {"label": "TUNICA INTIMA & ENDOTHELIUM", "text": "Vascular lining regulating vascular tone, permeability, and smooth blood flow."},
-            {"label": "TUNICA MEDIA", "text": "Smooth muscle and elastic fibers regulating vasodilation and vasoconstriction."},
-            {"label": "TUNICA ADVENTITIA", "text": "Outer connective tissue anchoring blood vessels to surrounding tissues."},
-            {"label": "CAPILLARY BED", "text": "Microvascular network facilitating tissue oxygenation and nutrient exchange."}
-        ]
-    }
-
-    DEFAULT_STAGES_ITEMS = {
-        "lungs": [
-            {"label": "STAGE 1: EXUDATIVE PHASE", "text": "Alveolar edema, capillary congestion, and neutrophil infiltration (Days 1-7)."},
-            {"label": "STAGE 2: PROLIFERATIVE PHASE", "text": "Type II pneumocyte hyperplasia and cellular tissue repair (Days 7-21)."},
-            {"label": "STAGE 3: FIBROTIC PHASE", "text": "Extensive pulmonary fibrosis, lung remodeling, and compliance loss (>21 Days)."}
-        ],
-        "heart": [
-            {"label": "STAGE A: AT RISK", "text": "High risk for heart failure without structural disease or symptoms."},
-            {"label": "STAGE B: PRE-HEART FAILURE", "text": "Structural heart disease present without clinical signs or symptoms."},
-            {"label": "STAGE C: SYMPTOMATIC HF", "text": "Structural heart disease with past or current heart failure symptoms."},
-            {"label": "STAGE D: ADVANCED HF", "text": "Marked refractory symptoms at rest requiring specialized interventions."}
-        ],
-        "kidney": [
-            {"label": "STAGE 1: NORMAL / HIGH GFR", "text": "Kidney damage with normal or elevated GFR (≥90 mL/min/1.73m²)."},
-            {"label": "STAGE 2: MILD DECREASE", "text": "Mild reduction in renal function (GFR 60-89 mL/min/1.73m²)."},
-            {"label": "STAGE 3: MODERATE DECREASE", "text": "Moderate GFR decline (Stage 3a: 45-59, Stage 3b: 30-44 mL/min)."},
-            {"label": "STAGE 4: SEVERE DECREASE", "text": "Severe loss of kidney function (GFR 15-29 mL/min/1.73m²)."},
-            {"label": "STAGE 5: KIDNEY FAILURE", "text": "End-stage renal disease (ESRD) requiring dialysis or transplant (GFR <15)."}
-        ],
-        "liver": [
-            {"label": "STAGE 1: INFLAMMATION", "text": "Early liver cell swelling and hepatic inflammation."},
-            {"label": "STAGE 2: FIBROSIS", "text": "Scar tissue begins to form around liver tissue and portal triads."},
-            {"label": "STAGE 3: CIRRHOSIS", "text": "Permanent irreversible nodular scarring altering hepatic vasculature."},
-            {"label": "STAGE 4: LIVER FAILURE", "text": "End-stage hepatic decompensation requiring liver transplantation."}
-        ],
-        "brain": [
-            {"label": "STAGE 1: EARLY / MILD", "text": "Initial cognitive decline, subtle memory loss, and focal symptoms."},
-            {"label": "STAGE 2: MODERATE / PROGRESSIVE", "text": "Increasing disorientation, speech difficulty, and impaired motor control."},
-            {"label": "STAGE 3: SEVERE / ADVANCED", "text": "Profound neural deficits, loss of autonomy, and autonomic instability."}
-        ],
-        "stomach": [
-            {"label": "STAGE 1: MUCOSAL DAMAGE", "text": "Superficial gastric mucosal irritation and acid erosion."},
-            {"label": "STAGE 2: ULCER FORMATION", "text": "Deeper submucosal erosion forming active gastric ulceration."},
-            {"label": "STAGE 3: COMPLICATED DISEASE", "text": "Risk of gastric perforation, bleeding, or pyloric stenosis."}
-        ],
-        "vessels": [
-            {"label": "STAGE 1: ENDOTHELIAL DAMAGE", "text": "Vascular wall shear stress and lipid streak accumulation."},
-            {"label": "STAGE 2: PLAQUE FORMATION", "text": "Fibrous cap formation causing luminal arterial narrowing."},
-            {"label": "STAGE 3: OCCLUSION / RUPTURE", "text": "Critical tissue ischemia, thrombosis, or plaque rupture."}
-        ]
-    }
-
-    DEFAULT_PATHWAY_ITEMS = {
-        "lungs": {
-            "title": f"{doc_organ_name.upper()} PATHOPHYSIOLOGY PATHWAY",
-            "heading": f"{doc_organ_name.upper()} PATHOPHYSIOLOGY PATHWAY",
-            "type": "flowchart",
-            "section_type": "flowchart",
-            "flows": [{
-                "label": f"{doc_organ_name.upper()} PATHWAY",
-                "steps": [
-                    {"name": "INJURY INITIATION", "subtext": "Direct or indirect pulmonary insult triggers systemic inflammatory release."},
-                    {"name": "ENDOTHELIAL DAMAGE", "subtext": "Neutrophil infiltration damages alveolar-capillary membrane barrier."},
-                    {"name": "ALVEOLAR FLUID EXUDATE", "subtext": "Protein-rich exudative fluid fills alveoli and inactivates surfactant."},
-                    {"name": "ATELECTASIS & HYPOXEMIA", "subtext": "Alveolar collapse leads to severe V/Q mismatch and refractory hypoxemia."}
-                ]
-            }],
-            "accent": "purple"
-        },
-        "heart": {
-            "title": "CARDIAC BLOOD FLOW PATHWAY",
-            "heading": "CARDIAC BLOOD FLOW PATHWAY",
-            "type": "flowchart",
-            "section_type": "flowchart",
-            "flows": [{
-                "label": "CARDIAC CIRCULATION PATHWAY",
-                "steps": [
-                    {"name": "RIGHT ATRIUM", "subtext": "Receives deoxygenated venous return from vena cava."},
-                    {"name": "RIGHT VENTRICLE", "subtext": "Pumps deoxygenated blood through pulmonary artery into lungs."},
-                    {"name": "LEFT ATRIUM", "subtext": "Receives oxygen-rich blood returning from pulmonary veins."},
-                    {"name": "LEFT VENTRICLE & AORTA", "subtext": "Propels oxygenated blood into systemic arterial circulation."}
-                ]
-            }],
-            "accent": "purple"
-        },
-        "kidney": {
-            "title": "RENAL FILTRATION PATHWAY",
-            "heading": "RENAL FILTRATION PATHWAY",
-            "type": "flowchart",
-            "section_type": "flowchart",
-            "flows": [{
-                "label": "NEPHRON URINE FORMATION PATHWAY",
-                "steps": [
-                    {"name": "GLOMERULAR FILTRATION", "subtext": "High-pressure plasma filtration at Bowman capsule."},
-                    {"name": "PROXIMAL REABSORPTION", "subtext": "Reabsorption of glucose, amino acids, water, and sodium."},
-                    {"name": "LOOP OF HENLE COUNTERCURRENT", "subtext": "Establishes osmotic gradient concentrating tubular fluid."},
-                    {"name": "COLLECTING DUCT EXCRETION", "subtext": "Final water reabsorption under ADH control and urine excretion."}
-                ]
-            }],
-            "accent": "purple"
-        },
-        "liver": {
-            "title": "HEPATIC CIRCULATION PATHWAY",
-            "heading": "HEPATIC CIRCULATION PATHWAY",
-            "type": "flowchart",
-            "section_type": "flowchart",
-            "flows": [{
-                "label": "HEPATIC PROCESSING PATHWAY",
-                "steps": [
-                    {"name": "PORTAL INFLOW", "subtext": "Dual blood supply from hepatic artery and portal vein enters sinusoids."},
-                    {"name": "HEPATOCYTE CLEARANCE", "subtext": "Metabolic transformation, toxin neutralization, and glycogen storage."},
-                    {"name": "BILE SYNTHESIS", "subtext": "Secretes bile acids and conjugated bilirubin into bile canaliculi."},
-                    {"name": "HEPATIC VEIN OUTFLOW", "subtext": "Cleared blood drains to inferior vena cava while bile drains to gallbladder."}
-                ]
-            }],
-            "accent": "purple"
-        },
-        "brain": {
-            "title": "NEURAL REFLEX & CONDUCTION PATHWAY",
-            "heading": "NEURAL REFLEX & CONDUCTION PATHWAY",
-            "type": "flowchart",
-            "section_type": "flowchart",
-            "flows": [{
-                "label": "CENTRAL NERVOUS SYSTEM PATHWAY",
-                "steps": [
-                    {"name": "SENSORY RECEPTOR INPUT", "subtext": "Periphery detects environmental stimulus and transmits via afferent nerve."},
-                    {"name": "SPINAL & CEREBRAL INTEGRATION", "subtext": "Interneurons process signal in cerebral cortex and thalamic relay."},
-                    {"name": "EFFERENT MOTOR COMMAND", "subtext": "Motor cortex dispatches impulse down corticospinal tract."},
-                    {"name": "TARGET EFFECTOR RESPONSE", "subtext": "Neuromuscular junction activates target muscle or autonomic gland."}
-                ]
-            }],
-            "accent": "purple"
-        },
-        "stomach": {
-            "title": "GASTRIC DIGESTIVE PATHWAY",
-            "heading": "GASTRIC DIGESTIVE PATHWAY",
-            "type": "flowchart",
-            "section_type": "flowchart",
-            "flows": [{
-                "label": "GASTRIC SECRETION & MOTILITY PATHWAY",
-                "steps": [
-                    {"name": "CEPHALIC & GASTRIC PHASE", "subtext": "Vagal stimulation & gastrin release trigger HCl acid secretion."},
-                    {"name": "MECHANICAL CHURNING", "subtext": "Muscularis externa contractions mix food into acidic chyme."},
-                    {"name": "PROTEIN DIGESTION", "subtext": "Pepsin breaks down proteins in low pH environment."},
-                    {"name": "PYLORIC EMPTYING", "subtext": "Controlled release of chyme through pyloric sphincter into duodenum."}
-                ]
-            }],
-            "accent": "purple"
-        },
-        "vessels": {
-            "title": "VASCULAR HEMODYNAMIC PATHWAY",
-            "heading": "VASCULAR HEMODYNAMIC PATHWAY",
-            "type": "flowchart",
-            "section_type": "flowchart",
-            "flows": [{
-                "label": "VASCULAR PERFUSION PATHWAY",
-                "steps": [
-                    {"name": "ARTERIAL INFLOW", "subtext": "High pressure oxygenated surge delivered from aorta into major arteries."},
-                    {"name": "ARTERIOLAR RESISTANCE", "subtext": "Smooth muscle tone regulates peripheral resistance and blood pressure."},
-                    {"name": "CAPILLARY EXCHANGE", "subtext": "Microvascular diffusion delivers O2 and nutrients while picking up CO2."},
-                    {"name": "VENOUS RETURN", "subtext": "Low pressure return facilitated by skeletal muscle pumps and valves."}
-                ]
-            }],
-            "accent": "purple"
-        }
-    }
-
     # Check Anatomy rule
-    has_anatomy = False
     for sec in sections_to_use:
         t_low = (sec.get("title", "") or sec.get("heading", "")).lower()
         if "anatomy" in t_low or ("structure" in t_low and not any(k in t_low for k in ["cell", "protect", "neuron"])):
-            has_anatomy = True
             sec["isAnatomyCard"] = True
-            if not sec.get("items") or len(sec.get("items")) == 0 or all(not (it.get("text") or "").strip() for it in sec.get("items")):
-                sec["items"] = DEFAULT_ANATOMY_ITEMS.get(doc_subject, DEFAULT_ANATOMY_ITEMS["lungs"])
             break
 
-    if not has_anatomy:
-        anatomy_sec = {
-            "id": "section_anatomy",
-            "title": f"ANATOMY OF THE {doc_organ_name.upper()}",
-            "heading": f"ANATOMY OF THE {doc_organ_name.upper()}",
-            "type": "tagged_items",
-            "section_type": "tagged_items",
-            "bullets": [f"Anatomical organization of {doc_organ_name}."],
-            "items": DEFAULT_ANATOMY_ITEMS.get(doc_subject, DEFAULT_ANATOMY_ITEMS["lungs"]),
-            "flows": [],
-            "isAnatomyCard": True,
-            "organ_type": doc_subject,
-            "accent": "blue"
-        }
-        if len(sections_to_use) >= 1:
-            sections_to_use.insert(1, anatomy_sec)
-        else:
-            sections_to_use.append(anatomy_sec)
-
-    # Check Stages fallback
-    for sec in sections_to_use:
-        t_low = (sec.get("title", "") or sec.get("heading", "")).lower()
-        if any(k in t_low for k in ["stage", "phase"]):
-            if not sec.get("items") or len(sec.get("items")) == 0 or all(not (it.get("text") or "").strip() for it in sec.get("items")):
-                sec["items"] = DEFAULT_STAGES_ITEMS.get(doc_subject, DEFAULT_STAGES_ITEMS["lungs"])
-
-    # Sort into Layout Order: Card 1 (Overview) -> Card 2 (Anatomy) -> Card 3 (Pathway) -> Cards 4+
+    # Organize document-derived sections into visual dashboard layout order
     overview_card, anatomy_card = None, None
     pathway_cards, other_cards = [], []
 
     for idx, sec in enumerate(sections_to_use):
+        if not isinstance(sec, dict):
+            continue
         t_low = (sec.get("title", "") or sec.get("heading", "")).lower()
         is_non_path = any(k in t_low for k in ["cause", "diagnostic", "nursing", "intervention", "medication", "drug", "complication"])
         is_stage = any(k in t_low for k in ["stage", "phase"])
@@ -890,25 +1167,23 @@ def build_modular_visual_dashboard_schema(filename: str, raw_text: str, parsed_a
         else:
             other_cards.append(sec)
 
-    # 1. Sanitize Overview card items to keep Overview card clean & concise (2-4 items max)
+    # 1. Sanitize Overview card items to keep Overview card clean & concise (up to 5 items max)
     if overview_card:
         leakage_labels = {"pathophysiology", "patho", "diagnostic", "nursing", "intervention", "treatment", "medication", "cause", "causes", "stage", "stages"}
-        leakage_phrases = ["chest xray", "white out", "bronchoscopy", "blood culture", "abg blood", "v/q mismatch", "stiff lungs", "hypovolemia", "kayexalate"]
         
         clean_overview_items = []
         for it in overview_card.get("items", []):
             if isinstance(it, dict):
                 lbl = (it.get("label") or "").strip().lower()
-                txt = (it.get("text") or "").strip().lower()
-                is_leaked = any(kl in lbl for kl in leakage_labels) or any(kp in txt for kp in leakage_phrases)
+                is_leaked = any(kl in lbl for kl in leakage_labels)
                 if not is_leaked:
                     clean_overview_items.append(it)
         if clean_overview_items:
-            overview_card["items"] = clean_overview_items[:4]
+            overview_card["items"] = clean_overview_items[:5]
         else:
             dyn_overview = next((ds for ds in dynamic_sections if "overview" in (ds.get("heading") or "").lower()), None)
             if dyn_overview and dyn_overview.get("items"):
-                overview_card["items"] = [it for it in dyn_overview["items"] if isinstance(it, dict) and not any(kl in (it.get("label") or "").lower() for kl in leakage_labels)][:4]
+                overview_card["items"] = [it for it in dyn_overview["items"] if isinstance(it, dict) and not any(kl in (it.get("label") or "").lower() for kl in leakage_labels)][:5]
 
     # 2. Extract step-by-step flows for Pathway cards directly from the document's real text
     for psec in pathway_cards:
@@ -944,39 +1219,112 @@ def build_modular_visual_dashboard_schema(filename: str, raw_text: str, parsed_a
                     "steps": flow_steps
                 }]
 
-    if not pathway_cards:
-        fallback_pw = DEFAULT_PATHWAY_ITEMS.get(doc_subject, DEFAULT_PATHWAY_ITEMS["lungs"])
-        pathway_cards.append({
-            "id": "section_pathway_fallback",
-            "title": fallback_pw["title"],
-            "heading": fallback_pw["heading"],
-            "type": "flowchart",
-            "section_type": "flowchart",
-            "flows": fallback_pw["flows"],
-            "bullets": [],
-            "items": [],
-            "accent": "purple"
-        })
-
     ordered = [s for s in [overview_card, anatomy_card] if s and isinstance(s, dict)]
     ordered.extend([s for s in pathway_cards if s and isinstance(s, dict)])
     ordered.extend([s for s in other_cards if s and isinstance(s, dict)])
+    # Cap ordered sections to maximum 8 cards BEFORE generating images
+    ordered = ordered[:8]
 
-    # Asset Resolution for Cards
+    # Structured Visual Requirements & Pipeline Asset Resolution for Cards
     for idx, sec in enumerate(ordered, start=1):
         if not sec or not isinstance(sec, dict):
             continue
         t_low = (sec.get("title", "") or sec.get("heading", "")).lower()
-        if any(k in t_low for k in ["medication", "drug", "pharmacolog", "treatment", "therapy"]):
-            sec["image"] = resolve_visual_asset(doc_subject, visual_type="primary", is_medication=True)
-        elif sec.get("isAnatomyCard") or "anatomy" in t_low:
-            sec["image"] = resolve_visual_asset(doc_subject, visual_type="cross_section")
-        elif idx == 1 or "overview" in t_low:
-            sec["image"] = resolve_visual_asset(doc_subject, visual_type="organ_3d")
+        sec_title = sec.get("title") or sec.get("heading") or f"Section {idx}"
+        
+        # Extract snippet of section content to ground the image prompt
+        sec_text_lines = []
+        for it in (sec.get("items") or []):
+            if isinstance(it, dict) and it.get("text"):
+                sec_text_lines.append(it["text"])
+            elif isinstance(it, str):
+                sec_text_lines.append(it)
+        for b in (sec.get("bullets") or []):
+            if isinstance(b, str):
+                sec_text_lines.append(b)
+        sec_text_snippet = " ".join(sec_text_lines[:4])
+
+        # Categorize visual type for section card
+        if "overview" in t_low or (idx == 1 and not any(k in t_low for k in ["anatomy", "patho", "medication"])):
+            v_type = "overview"
+            subj = f"{topic_name} Overview"
+            purpose = f"Show main clinical overview visual for {topic_name}"
+        elif sec.get("isAnatomyCard") or "anatomy" in t_low or "structure" in t_low:
+            v_type = "anatomy"
+            subj = f"{doc_organ_name} Anatomy"
+            purpose = f"Show detailed internal anatomy cross-section of {doc_organ_name}"
         elif sec.get("type") == "flowchart" or sec.get("flows") or "pathway" in t_low or "patho" in t_low:
-            sec["image"] = resolve_visual_asset(doc_subject, visual_type="pathway")
+            v_type = "pathway"
+            subj = f"{topic_name} Pathophysiology"
+            purpose = "Presented via icon-based step flowchart; no image required."
+        elif any(k in t_low for k in ["medication", "drug", "pharmacolog"]):
+            v_type = "medication"
+            subj = f"{topic_name} Pharmacological Management"
+            purpose = f"Show medication and drug therapy for {topic_name}"
+        elif any(k in t_low for k in ["symptom", "sign", "manifestation"]):
+            v_type = "symptoms"
+            subj = f"{topic_name} Signs & Symptoms"
+            purpose = f"Show clinical symptom presentation for {topic_name}"
+        elif any(k in t_low for k in ["diagnostic", "test", "lab", "assessment", "workup"]):
+            v_type = "diagnostic"
+            subj = f"{topic_name} Diagnostic Workup"
+            purpose = f"Show laboratory indicators and diagnostic findings for {topic_name}"
+        elif any(k in t_low for k in ["treatment", "management", "nursing", "intervention", "care"]):
+            v_type = "treatment"
+            subj = f"{topic_name} Clinical Management"
+            purpose = f"Show treatment strategies and nursing care for {topic_name}"
+        elif any(k in t_low for k in ["risk", "cause", "etiology"]):
+            v_type = "risk"
+            subj = f"{topic_name} Risk Factors"
+            purpose = f"Show etiology and risk factors for {topic_name}"
+        else:
+            v_type = "general"
+            subj = f"{topic_name} - {sec_title}"
+            purpose = f"Educational visual for {sec_title}"
+
+        is_pathway_card = (v_type == "pathway" or sec.get("type") == "flowchart" or bool(sec.get("flows")) or "pathway" in t_low or "patho" in t_low)
+
+        if is_pathway_card:
+            sec_img = ""
+            sec["visual"] = {
+                "required": False,
+                "type": "pathway",
+                "subject": subj,
+                "purpose": "Presented via icon-based step flowchart; no image required.",
+                "image_url": ""
+            }
+            sec["image"] = ""
+            sec["image_url"] = ""
+        else:
+            req = {
+                "type": v_type,
+                "subject": subj,
+                "purpose": purpose,
+                "doc_topic": topic_name,
+                "section_title": sec_title,
+                "section_text": sec_text_snippet,
+                "required": True
+            }
+
+            existing_img = sec.get("image") or sec.get("image_url") or (sec.get("visual") or {}).get("image_url")
+            if existing_img:
+                sec_img = existing_img
+            else:
+                sec_img, _, _ = resolve_or_generate_visual(req, raw_text=raw_text, filename=filename)
+
+            sec["visual"] = {
+                "required": True,
+                "type": v_type,
+                "subject": subj,
+                "purpose": purpose,
+                "image_url": sec_img or ""
+            }
+            sec["image"] = sec_img or ""
+            sec["image_url"] = sec_img or ""
 
     clean_sections = sanitize_and_group_sections(ordered)
+    # Cap sections array to maximum 8 cards as required by prompt specification
+    clean_sections = clean_sections[:8]
 
     bottom_panels = {
         "clinical_tip": {"title": "Clinical Tip", "text": f"Monitor hemodynamic status and organ perfusion parameters when assessing {doc_organ_name.lower()} function."},
@@ -986,6 +1334,56 @@ def build_modular_visual_dashboard_schema(filename: str, raw_text: str, parsed_a
         if isinstance(parsed_ai["bottom_panels"], dict):
             bottom_panels.update(parsed_ai["bottom_panels"])
 
+    summary_obj = None
+    if parsed_ai and isinstance(parsed_ai, dict) and "summary" in parsed_ai:
+        summary_obj = parsed_ai["summary"]
+
+    if not summary_obj or not isinstance(summary_obj, dict):
+        overview_sentence = f"High-yield study sheet summarizing {topic_name} core pathophysiological mechanisms, diagnostic indicators, and essential nursing interventions."
+        high_yield = []
+        if dynamic_sections:
+            for ds in dynamic_sections[:5]:
+                heading_txt = (ds.get("heading") or ds.get("title") or "").title()
+                if ds.get("items"):
+                    it_sample = ds["items"][0]
+                    if isinstance(it_sample, dict) and it_sample.get("text"):
+                        high_yield.append(f"{heading_txt}: {it_sample['text'][:120]}")
+                elif ds.get("bullets"):
+                    b_sample = ds["bullets"][0]
+                    if isinstance(b_sample, str) and len(b_sample) > 5:
+                        high_yield.append(f"{heading_txt}: {b_sample[:120]}")
+        if not high_yield:
+            high_yield = [
+                f"Key clinical concepts and anatomical structures of the {doc_organ_name}.",
+                "Diagnostic workup and high-priority nursing assessments.",
+                "Pharmacological management, interventions, and safety red flags."
+            ]
+        summary_obj = {
+            "one_sentence_overview": overview_sentence,
+            "high_yield_points": high_yield[:5]
+        }
+
+    exam_support = (parsed_ai.get("exam_support") if parsed_ai and isinstance(parsed_ai, dict) else None) or {
+        "memory_aid": {"title": f"{doc_organ_name.upper()} Assessment", "content": f"Recall key anatomical landmarks and monitoring priorities for {topic_name}.", "is_source_supported": True},
+        "exam_tips": [{"tip": "Focus on diagnostic findings and high-priority nursing interventions.", "origin": "source"}]
+    }
+
+    safety_panel = (parsed_ai.get("safety_panel") if parsed_ai and isinstance(parsed_ai, dict) else None) or {
+        "red_flags": [f"Monitor for acute distress or sudden changes in {doc_organ_name.lower()} function parameters."],
+        "medication_safety_notes": ["Verify current orders and institutional guidelines prior to medication administration."]
+    }
+
+    doc_meta = (parsed_ai.get("document") if parsed_ai and isinstance(parsed_ai, dict) else None) or {
+        "title": f"{topic_name} Visual Notes",
+        "subtitle": "Nursing Study Sheet • High-Yield Summary",
+        "topic_type": "disease",
+        "student_level": "intermediate",
+        "layout_type": "disease_overview",
+        "page_size": "mobile_portrait",
+        "estimated_pages": 1,
+        "educational_disclaimer": "Educational study support material. Follow institutional policy and clinical judgment."
+    }
+
     return {
         "id": f"doc_{uuid.uuid4().hex[:8]}",
         "filename": filename,
@@ -993,15 +1391,21 @@ def build_modular_visual_dashboard_schema(filename: str, raw_text: str, parsed_a
         "organ_subject": doc_subject,
         "organ_name": doc_organ_name,
         "original_text": raw_text.strip(),
+        "visual_requirements": extract_visual_requirements(filename, raw_text, clean_sections),
+        "summary": summary_obj,
+        "exam_support": exam_support,
+        "safety_panel": safety_panel,
+        "document": doc_meta,
         "sections": clean_sections,
         "cards": clean_sections,
         "bottom_panels": bottom_panels,
         "header": {
             "title": f"{topic_name} Visual Notes",
-            "subtitle": "AI Visual Notes System • 1:1 Synchronized Study Sheet",
+            "subtitle": "AI Visual Notes System • High-Yield Study Sheet (Max 8 Cards)",
             "topic": topic_name
         }
     }
+
 
 
 # --- OpenAI API with Graceful Deterministic Fallback ---
@@ -1030,14 +1434,387 @@ def call_openai_api(system_prompt: str, user_content: str) -> Optional[dict]:
             print(f"[{model_name} API Notice] {e}")
     return None
 
+def ensure_6_to_8_sections(original_note: dict, filename: str, raw_text: str) -> dict:
+    """Guarantees that the sections array contains between 6 and 8 dynamic sections."""
+    sections = original_note.get("sections")
+    if not isinstance(sections, list):
+        sections = []
+
+    doc_analysis = original_note.get("document_analysis") or {}
+    topic_name = doc_analysis.get("topic") or filename.rsplit('.', 1)[0].replace("_", " ").replace("-", " ").title()
+
+    key_terms = extract_key_terms_from_document({"raw_text": raw_text, "sections": sections}, "important terms")
+    if key_terms:
+        doc_analysis["key_terms_focused"] = key_terms[:10]
+    else:
+        doc_analysis["key_terms_focused"] = [topic_name, "Clinical Management", "Nursing Interventions"]
+
+    original_note["document_analysis"] = doc_analysis
+
+    existing_titles = { (s.get("title") or "").strip().lower() for s in sections if isinstance(s, dict) }
+
+    priority_fillers = [
+        ("Causes & Risk Factors", "dynamic", "Diseases and Conditions", [f"Etiology, primary risk factors, and precipitating triggers for {topic_name}."]),
+        ("Signs & Symptoms", "dynamic", "Diseases and Conditions", [f"Clinical manifestations, patient presentation, and physical assessment findings."]),
+        ("Diagnostic Workup & Labs", "dynamic", "Laboratory Values", [f"Diagnostic imaging, laboratory indicators, and reference parameters for {topic_name}."]),
+        ("Medical Management", "dynamic", "Diseases and Conditions", [f"Pharmacological treatment, therapeutic interventions, and clinical management goals."]),
+        ("Nursing Interventions", "dynamic", "Diseases and Conditions", [f"High-priority nursing care, monitoring protocols, and clinical safety measures."]),
+        ("Patient Education", "dynamic", "Diseases and Conditions", [f"Patient teaching points, lifestyle modifications, and self-management instructions."]),
+        ("Red Flags & Critical Alerts", "dynamic", "Diseases and Conditions", [f"Urgent clinical indicators, red flag symptoms, and emergency complications."]),
+        ("Exam Tips & Memory Aid", "dynamic", "Diseases and Conditions", [f"High-yield exam review tips and memory mnemonics for {topic_name}."])
+    ]
+
+    idx = len(sections) + 1
+    if len(sections) < 6:
+        for title, sec_type, source, content in priority_fillers:
+            if len(sections) >= 6:
+                break
+            t_low = title.lower()
+            if not any(t in t_low or t_low in t for t in existing_titles):
+                sections.append({
+                    "section_number": idx,
+                    "title": title,
+                    "type": sec_type,
+                    "priority_source": source,
+                    "content": content,
+                    "visual": {
+                        "required": False,
+                        "type": "diagram",
+                        "subject": title,
+                        "purpose": f"Educational visual for {title}"
+                    }
+                })
+                existing_titles.add(t_low)
+                idx += 1
+
+    sections = sections[:8]
+
+    for i, sec in enumerate(sections, start=1):
+        if isinstance(sec, dict):
+            sec["section_number"] = i
+
+    original_note["sections"] = sections
+    return original_note
+
+
+def clean_bullet_sentence(sentence: str, max_words: int = 40) -> Optional[str]:
+    """Cleans a single sentence string, removing metadata, journal stamps, and capping length at max_words."""
+    if not sentence or not isinstance(sentence, str):
+        return None
+    s = sentence.strip()
+    s = re.sub(r'AJPHI\s*[|I]\s*VOLUME\s*\d+\s*[|I]\s*\d{4}\s*(?:ORIGINAL ARTICLE)?', '', s, flags=re.I)
+    s = re.sub(r'The\s+American\s+Journal\s+of\s+Patient\s+Health\s+Info\s*:\s*\d{4}', '', s, flags=re.I)
+    s = re.sub(r'CORONARY\s+ARTERY\s+DISEASE\s+CAD\s+DEMYSTIFIED\s+CAUSES\s+[A-Z0-9\s_\-]*OVERVIEW\s*:\s*', '', s, flags=re.I)
+    s = re.sub(r'^[A-Z0-9\s_\-]{10,80}\s*OVERVIEW\s*:\s*', '', s, flags=re.I).strip()
+    
+    if len(s) < 10 or any(k in s.lower() for k in ["journal", "volume", "ajphi", "author", "available from", "doi:", "issn:"]):
+        return None
+        
+    words = s.split()
+    if len(words) > max_words:
+        s = " ".join(words[:max_words]).rstrip(',;:-')
+        if not s.endswith('.'):
+            s += '.'
+    elif not s.endswith(('.', '?', '!', ':')):
+        s += '.'
+        
+    return s
+
+
+def build_section_bullets(raw_texts: list, section_title: str = "", filename: str = "", min_bullets: int = 3, max_bullets: int = 5) -> list:
+    """
+    Dynamically generates AT LEAST 3 bullet points and AT MOST 5 bullet points for EVERY section based on content richness.
+    Each bullet point contains 15 to 35 words of high-yield clinical content.
+    """
+    candidate_sentences = []
+    for rt in raw_texts:
+        sentences = re.split(r'(?<=[.!?])\s+|\n+|[;•\-\*●▪■◆➢►○✔✓]\s*', str(rt))
+        for st in sentences:
+            c_st = clean_bullet_sentence(st, max_words=35)
+            if c_st and c_st not in candidate_sentences:
+                candidate_sentences.append(c_st)
+
+    bullets = []
+    for st in candidate_sentences:
+        if st not in bullets:
+            bullets.append(st)
+            if len(bullets) >= max_bullets:
+                break
+
+    # If long sentences can be cleanly split into 4 or 5 distinct high-yield points when content permits
+    if len(bullets) < max_bullets and candidate_sentences:
+        expanded_bullets = []
+        for b in bullets:
+            words = b.split()
+            if len(words) >= 24 and len(expanded_bullets) < max_bullets:
+                sub_parts = re.split(r'\s+;\s+|\s+,\s+and\s+|\s+,\s+which\s+', b)
+                if len(sub_parts) > 1 and (len(bullets) - 1 + len(sub_parts)) <= max_bullets:
+                    for sp in sub_parts:
+                        clean_sp = clean_bullet_sentence(sp, max_words=35)
+                        if clean_sp and clean_sp not in expanded_bullets:
+                            expanded_bullets.append(clean_sp)
+                            if len(expanded_bullets) >= max_bullets:
+                                break
+                    continue
+            if b not in expanded_bullets:
+                expanded_bullets.append(b)
+        if len(expanded_bullets) >= min_bullets:
+            bullets = expanded_bullets[:max_bullets]
+
+    clean_sec_title = re.sub(r'^\d+[\.\)]\s*', '', section_title).strip()
+
+    fillers = [
+        f"Primary physiological mechanisms, structural characteristics, and assessment parameters associated with {clean_sec_title}.",
+        f"Key clinical diagnostic findings, laboratory indicators, and monitoring protocols relevant to {clean_sec_title}.",
+        f"High-priority nursing interventions, therapeutic management goals, and patient safety precautions for {clean_sec_title}.",
+        f"Essential patient education points, risk factor modifications, and clinical monitoring recommendations for {clean_sec_title}."
+    ]
+
+    for f in fillers:
+        if len(bullets) >= min_bullets:
+            break
+        if f not in bullets:
+            bullets.append(f)
+
+    return bullets[:max_bullets]
+
+
+def sanitize_original_note_sections(original_note: dict, filename: str, raw_text: str) -> dict:
+    """
+    Sanitizes all sections in Original Note (from AI or deterministic engine):
+    1. Guarantees 6 to 8 structured sections.
+    2. EVERY section (Sections 1-8) contains AT LEAST 3 bullet points and MAXIMUM 5 bullet points.
+    3. Strips all journal headers, author stamps, volume tags, and repetitive title prefixes.
+    4. Capping length of each bullet point to 20-35 words.
+    """
+    if not original_note or not isinstance(original_note, dict):
+        original_note = {}
+
+    sections = original_note.get("sections")
+    if not isinstance(sections, list):
+        sections = []
+
+    clean_sections = []
+    for s_idx, sec in enumerate(sections, start=1):
+        if not isinstance(sec, dict):
+            continue
+            
+        raw_title = sec.get("title") or sec.get("heading") or f"Section {s_idx}"
+        clean_title = re.sub(r'^\d+[\.\)]\s*', '', raw_title).strip()
+        clean_title = clean_raw_text_metadata(clean_title)
+        if not clean_title:
+            clean_title = f"Clinical Section {s_idx}"
+
+        raw_texts = []
+        if sec.get("content"):
+            if isinstance(sec["content"], list):
+                raw_texts.extend([str(c) for c in sec["content"] if c])
+            elif isinstance(sec["content"], str):
+                raw_texts.append(sec["content"])
+
+        if sec.get("items"):
+            for it in sec["items"]:
+                if isinstance(it, dict) and it.get("text"):
+                    raw_texts.append(it["text"])
+                elif isinstance(it, str):
+                    raw_texts.append(it)
+
+        if sec.get("bullets"):
+            for b in sec["bullets"]:
+                if isinstance(b, str):
+                    raw_texts.append(b)
+
+        clean_bullets = build_section_bullets(raw_texts, section_title=clean_title, filename=filename, min_bullets=3, max_bullets=5)
+
+        sec_items = []
+        for cb in clean_bullets:
+            parts = re.split(r':|\s+[–—\-]\s+', cb, maxsplit=1)
+            if len(parts) == 2 and len(parts[0].strip()) < 25 and len(parts[1].strip()) > 5:
+                lbl = parts[0].strip().upper()
+                txt = parts[1].strip()
+                if not txt.endswith('.'): txt += '.'
+                sec_items.append({"label": lbl, "text": txt, "tag": lbl})
+            else:
+                sec_items.append({"label": clean_title.upper(), "text": cb, "tag": clean_title.upper()})
+
+        sec_type_cat = "anatomy" if "anatomy" in clean_title.lower() else ("pathway" if "patho" in clean_title.lower() or "pathway" in clean_title.lower() else ("medication" if any(k in clean_title.lower() for k in ["medication", "drug", "pharmaco"]) else "general"))
+        
+        is_pathway_sec = sec_type_cat == "pathway" or "patho" in clean_title.lower() or "pathway" in clean_title.lower() or sec.get("type") == "flowchart"
+        if is_pathway_sec:
+            sec_img = ""
+            sec_visual = {
+                "required": False,
+                "type": "pathway",
+                "subject": clean_title,
+                "purpose": "Presented via icon-based step flowchart; no image required.",
+                "image_url": ""
+            }
+        else:
+            req = {
+                "type": sec_type_cat,
+                "subject": clean_title,
+                "section_title": clean_title,
+                "purpose": f"Visual notes block for {clean_title}",
+                "required": True
+            }
+            existing_img = sec.get("image") or sec.get("image_url") or (sec.get("visual") or {}).get("image_url")
+            if existing_img:
+                sec_img = existing_img
+            else:
+                sec_img, _, _ = resolve_or_generate_visual(req, raw_text=raw_text, filename=filename)
+            sec_visual = {
+                "required": True,
+                "type": sec_type_cat,
+                "subject": clean_title,
+                "purpose": f"Visual notes block for {clean_title}",
+                "image_url": sec_img or ""
+            }
+
+        clean_sections.append({
+            "section_number": s_idx,
+            "title": clean_title.title(),
+            "heading": clean_title.upper(),
+            "type": sec.get("type") or sec.get("section_type") or ("flowchart" if is_pathway_sec else "dynamic"),
+            "priority_source": sec.get("priority_source") or "Document Emphasis",
+            "content": clean_bullets,
+            "items": sec_items,
+            "bullets": clean_bullets,
+            "flows": sec.get("flows") or sec.get("flow") or [],
+            "image": sec_img or "",
+            "image_url": sec_img or "",
+            "visual": sec_visual
+        })
+
+    original_note["sections"] = clean_sections
+    return ensure_6_to_8_sections(original_note, filename, raw_text)
+
+
+def build_deterministic_original_note(file_name: str, raw_text: str) -> Dict[str, Any]:
+    """Fallback parser that structures raw document text into dynamic section cards (6-8 sections)."""
+    cleaned_text = clean_raw_text_metadata(raw_text)
+    topic_slug, topic_title = detect_primary_subject(file_name, cleaned_text)
+    parsed_sections = parse_dynamic_sections_from_text(cleaned_text, topic_name=topic_title)
+    
+    sections_list = []
+    for idx, sec in enumerate(parsed_sections, start=1):
+        heading = sec.get("heading") or f"Section {idx}"
+        lines = sec.get("lines") or []
+        bullets = build_section_bullets(lines, section_title=heading, filename=file_name, min_bullets=3, max_bullets=5)
+        sections_list.append({
+            "section_number": idx,
+            "title": heading,
+            "heading": heading,
+            "type": sec.get("type", "dynamic"),
+            "priority_source": "Document Emphasis",
+            "content": bullets,
+            "bullets": bullets
+        })
+        
+    clean_doc_title = os.path.splitext(file_name)[0].replace("_", " ").replace("-", " ").title() if file_name else "Uploaded Notes"
+    original_note = {
+        "document_analysis": {
+            "title": file_name,
+            "topic": clean_doc_title,
+            "primary_subject": topic_title,
+            "document_type": "general"
+        },
+        "filename": file_name,
+        "original_text": raw_text,
+        "sections": sections_list
+    }
+    return ensure_6_to_8_sections(original_note, file_name, raw_text)
+
+
+def analyze_document_for_original_notes(file_name: str, raw_text: str) -> Dict[str, Any]:
+    """
+    Executes Stage 1 Document Analysis Engine.
+    Analyzes content, extracts priorities, and organizes document into 6-8 structured Original Note sections.
+    """
+    truncated = raw_text[:15000] if len(raw_text) > 15000 else raw_text
+    user_msg = f"Document Filename: {file_name}\n\nRAW UPLOADED DOCUMENT CONTENT:\n{truncated}"
+
+    parsed_json = call_openai_api(DOCUMENT_ANALYSIS_ORIGINAL_NOTE_PROMPT, user_msg)
+    if parsed_json and isinstance(parsed_json, dict) and "sections" in parsed_json:
+        result = sanitize_original_note_sections(parsed_json, file_name, raw_text)
+        result["filename"] = file_name
+        result["original_text"] = raw_text
+        return result
+
+    result = build_deterministic_original_note(file_name, raw_text)
+    result = sanitize_original_note_sections(result, file_name, raw_text)
+    result["filename"] = file_name
+    result["original_text"] = raw_text
+    return result
+
+
+def build_visual_notes_from_original_note(original_note: dict) -> dict:
+    """
+    Executes Stage 2 Visual Notes Generation.
+    Converts structured Original Note (6-8 sections) into 3D Visual Cards Dashboard Schema with diagram resolution.
+    """
+    file_name = original_note.get("filename") or "Uploaded_Notes.pdf"
+    raw_text = original_note.get("original_text") or ""
+    
+    sections_in = original_note.get("sections") or []
+    
+    card_sections = []
+    for s in sections_in:
+        if not isinstance(s, dict):
+            continue
+        stitle = s.get("title") or "Section"
+        content_items = s.get("content") or []
+        if isinstance(content_items, str):
+            content_items = [content_items]
+            
+        items_objs = []
+        bullets_list = []
+        for c in content_items:
+            if isinstance(c, str):
+                parts = c.split(":", 1)
+                if len(parts) == 2 and len(parts[0].strip()) < 35:
+                    items_objs.append({"label": parts[0].strip().upper(), "text": parts[1].strip()})
+                else:
+                    items_objs.append({"label": stitle.upper(), "text": c.strip()})
+                bullets_list.append(c.strip())
+            elif isinstance(c, dict):
+                items_objs.append(c)
+
+        flow_steps = s.get("flow") or s.get("flows") or []
+        sec_type = "flowchart" if (flow_steps or "pathophysiology" in stitle.lower()) else "tagged_items"
+
+        card_sections.append({
+            "id": f"section_{s.get('section_number', len(card_sections)+1)}",
+            "title": stitle.upper(),
+            "heading": stitle.upper(),
+            "type": sec_type,
+            "section_type": sec_type,
+            "items": items_objs,
+            "bullets": bullets_list,
+            "flows": flow_steps,
+            "content": "\n".join(bullets_list)
+        })
+
+    clean_doc_name = os.path.splitext(file_name)[0].replace("_", " ").replace("-", " ").title() if file_name else "Uploaded Notes"
+    parsed_ai = {
+        "document": {
+            "title": f"{clean_doc_name} Visual Notes",
+            "subtitle": "AI Visual Notes • 3D Cards Dashboard",
+            "topic_type": "disease"
+        },
+        "sections": card_sections
+    }
+
+    plan = build_modular_visual_dashboard_schema(file_name, raw_text, parsed_ai)
+    plan["filename"] = file_name
+    plan["topic"] = clean_doc_name
+    plan["original_note"] = original_note
+    return plan
+
+
 def build_visual_notes_from_text(file_name: str, raw_text: str) -> Dict[str, Any]:
     """Builds visual study notes schema using OpenAI API or deterministic engine."""
-    truncated = raw_text[:15000] if len(raw_text) > 15000 else raw_text
-    user_msg = f"Document Filename: {file_name}\n\nRAW STUDY NOTES CONTENT:\n{truncated}"
-    openai_json = call_openai_api(MEDICAL_STUDY_NOTES_ARCHITECT_PROMPT, user_msg)
-    if openai_json and isinstance(openai_json, dict):
-        return build_modular_visual_dashboard_schema(file_name, raw_text, openai_json)
-    return build_modular_visual_dashboard_schema(file_name, raw_text)
+    orig = analyze_document_for_original_notes(file_name, raw_text)
+    return build_visual_notes_from_original_note(orig)
 
 
 # --- AI Edit Pipeline ---
@@ -1379,88 +2156,25 @@ def fuzzy_find_target_section(instruction: str, sections: list) -> dict:
     return best_sec
 
 
-def extract_color_from_instruction(instruction: str) -> str:
-    """Extracts whatever light color phrase the user requested without static word lists."""
-    text = instruction.lower().strip()
-    for phrase in [
-        "change the color theme to", "change color theme to", "change the color to",
-        "change color to", "change theme to", "change color theme", "make it",
-        "set theme to", "color theme", "theme color", "convert to", "switch to",
-        "please change to", "theme", "color"
-    ]:
-        text = text.replace(phrase, "")
-    clean = re.sub(r'[^a-z0-9\s\-]', '', text).strip()
-    return clean if clean else "pastel pink"
-
-
-MEDICAL_EXPLANATION_KB = {
-    "alveolar membrane": "Thin respiratory barrier (~0.5 μm) separating alveolar air from pulmonary capillary blood, facilitating rapid O2 and CO2 gas diffusion.",
-    "alveolar": "Air sac units in the lungs where oxygen enters the bloodstream and carbon dioxide is removed.",
-    "membrane": "Cellular respiratory membrane facilitating exchange of respiratory gases between alveoli and capillaries.",
-    "surfactant": "Lipoprotein fluid produced by Type II pneumocytes that lowers alveolar surface tension, preventing alveolar collapse (atelectasis).",
-    "sepsis": "Systemic inflammatory response to severe infection causing widespread endothelial damage, vasodilation, and microvascular fluid leaks.",
-    "atelectasis": "Partial or complete collapse of lung alveoli, impairing gas exchange and decreasing lung compliance.",
-    "peep": "Positive End-Expiratory Pressure: Mechanical ventilation setting that maintains positive airway pressure during exhalation to keep alveoli open.",
-    "hypoxemia": "Abnormally low partial pressure of oxygen in arterial blood, leading to tissue hypoxia.",
-    "permeability": "Microvascular leakiness allowing fluid and plasma proteins to escape into interstitial and alveolar spaces.",
-    "exudate": "Protein-rich inflammatory fluid that leaks into tissue or alveoli during acute injury.",
-    "capillary": "Microscopic blood vessels where oxygen, nutrients, and waste products are exchanged between blood and tissues."
-}
-
-SIMPLIFIED_STUDENT_VOCAB = {
-    "dyspnea": "shortness of breath (dyspnea)",
-    "hypoxemia": "low blood oxygen levels (hypoxemia)",
-    "hypoxia": "low tissue oxygen (hypoxia)",
-    "edema": "fluid swelling (edema)",
-    "tachycardia": "rapid heart rate (tachycardia)",
-    "bradycardia": "slow heart rate (bradycardia)",
-    "atelectasis": "air sac collapse (atelectasis)",
-    "cyanosis": "bluish skin from low oxygen (cyanosis)",
-    "surfactant": "fluid that keeps air sacs open (surfactant)",
-    "permeability": "vessel leakiness",
-    "exudate": "protein-rich fluid leak",
-    "etiology": "underlying cause",
-    "pathogenesis": "disease process step-by-step",
-    "manifestations": "signs & symptoms",
-    "ischemia": "lack of blood flow (ischemia)",
-    "necrosis": "tissue death (necrosis)",
-    "analgesic": "pain-relieving medicine",
-    "antipyretic": "fever-reducing medicine",
-    "hypertension": "high blood pressure",
-    "hypotension": "low blood pressure",
-    "auscultation": "listening with stethoscope",
-    "perfusion": "passage of blood to tissues",
-    "ventilation": "movement of air in/out of lungs"
-}
 
 def simplify_text_for_students(text: str) -> str:
-    """Simplifies complex medical terms and formats text into 1st-year student friendly language without truncating points."""
+    """Simplifies complex text by cleaning formatting and breaking into clear student-friendly sentences."""
     if not text or not isinstance(text, str):
         return ""
     clean = clean_markdown_stars(re.sub(r'<[^>]+>', '', text)).strip()
-
-    # Replace complex medical terms with beginner-friendly descriptions across full text
-    words = clean.split()
-    for i, w in enumerate(words):
-        w_clean = re.sub(r'[^a-zA-Z]', '', w).lower()
-        if w_clean in SIMPLIFIED_STUDENT_VOCAB:
-            words[i] = w.replace(re.sub(r'[^a-zA-Z]', '', w), SIMPLIFIED_STUDENT_VOCAB[w_clean])
-    
-    return " ".join(words)
+    return clean
 
 def extract_elaboration_from_document_text(plan: dict, target_sec: dict, instruction: str = "") -> Tuple[str, str]:
-    """Extracts real 1:1 clinical sentences from uploaded document text or provides clear clinical elaboration for custom prompts."""
+    """Extracts real 1:1 clinical sentences from uploaded document text strictly based on source content."""
     raw_text = (plan.get("original_text") or plan.get("raw_text") or plan.get("document_text") or "").strip()
     sec_title = (target_sec.get("title") or target_sec.get("heading") or "Clinical Section").strip()
     clean_sec_title = re.sub(r'^\d+[\.\)]\s*', '', sec_title).strip()
 
-    # Clean instruction to identify user's requested topic
     inst_clean = instruction.lower()
     for phrase in ["what is", "tell me about", "i want to know more in details", "i want to know more", "details", "explain", "describe", "more about", "in detail"]:
         inst_clean = inst_clean.replace(phrase, "")
     query_topic = inst_clean.strip(" .?!,")
 
-    # Keywords to search in document text
     matched_kws = [w for w in re.findall(r'\b[a-z]{3,}\b', query_topic) if w not in ["what", "want", "know", "more", "detail", "details", "this", "that"]]
     if not matched_kws:
         matched_kws = [w for w in clean_sec_title.lower().split() if len(w) > 3]
@@ -1478,22 +2192,12 @@ def extract_elaboration_from_document_text(plan: dict, target_sec: dict, instruc
                         break
 
     label_topic = query_topic.upper() if query_topic else clean_sec_title.upper()
-    elab_label = f"{label_topic} (CLINICAL DETAILS)"
+    elab_label = f"{label_topic} (DETAILS)"
 
     if extracted_sentences:
         elab_text = " ".join(extracted_sentences)
     else:
-        # Check medical explanation KB for queried terms
-        found_explanation = None
-        for key, exp in MEDICAL_EXPLANATION_KB.items():
-            if key in inst_clean or key in query_topic:
-                found_explanation = exp
-                break
-        
-        if found_explanation:
-            elab_text = found_explanation
-        else:
-            elab_text = f"Detailed physiological and anatomical mechanisms regarding {query_topic or clean_sec_title}."
+        elab_text = f"Key details regarding {query_topic or clean_sec_title} from document content."
 
     return elab_label, elab_text
 
@@ -1574,13 +2278,13 @@ def process_deterministic_ai_edit(plan: dict, instruction: str) -> dict:
                 if isinstance(fl, dict) and fl.get("label"):
                     fl["label"] = clean_markdown_stars(re.sub(r'<[^>]+>', '', str(fl["label"])))
 
-    # Rule 3: Concise / Shorter (Keeps 3-4 concise items/bullets/flows per card)
+    # Rule 3: Concise / Shorter (Keeps 3-5 concise items/bullets/flows per card, max 5)
     if any(k in text_lower for k in ["concise", "shorter", "brief", "summarize", "short"]):
         for sec in sections:
             if isinstance(sec, dict):
-                # 1. Truncate items to max 4 items, each max 1 sentence
+                # 1. Truncate items to max 5 items, each max 1 sentence
                 if sec.get("items") and isinstance(sec["items"], list):
-                    sec["items"] = sec["items"][:4]
+                    sec["items"] = sec["items"][:5]
                     for it in sec["items"]:
                         if isinstance(it, dict) and it.get("text"):
                             sentences = [s.strip() for s in re.split(r'\.\s+', str(it["text"])) if s.strip()]
@@ -1590,10 +2294,10 @@ def process_deterministic_ai_edit(plan: dict, instruction: str) -> dict:
                                     first_s += '.'
                                 it["text"] = first_s
 
-                # 2. Truncate bullets to max 4 bullets, each max 1 sentence
+                # 2. Truncate bullets to max 5 bullets, each max 1 sentence
                 if sec.get("bullets") and isinstance(sec["bullets"], list):
                     short_bullets = []
-                    for b in sec["bullets"][:4]:
+                    for b in sec["bullets"][:5]:
                         if isinstance(b, str) and b.strip():
                             sentences = [s.strip() for s in re.split(r'\.\s+', b) if s.strip()]
                             if sentences:
@@ -1603,9 +2307,9 @@ def process_deterministic_ai_edit(plan: dict, instruction: str) -> dict:
                                 short_bullets.append(first_s)
                     sec["bullets"] = short_bullets
 
-                # 3. Truncate flows to max 4 steps
+                # 3. Truncate flows to max 5 steps
                 if sec.get("flows") and isinstance(sec["flows"], list):
-                    sec["flows"] = sec["flows"][:4]
+                    sec["flows"] = sec["flows"][:5]
 
                 # 4. Truncate content to max 1 sentence
                 if sec.get("content") and isinstance(sec["content"], str):
@@ -1753,10 +2457,18 @@ Please return the updated valid JSON object with matching "sections" structure a
 def create_default_plan(filename: str = "Uploaded_Notes.pdf", text_content: str = "") -> dict:
     return build_modular_visual_dashboard_schema(filename, text_content)
 
-def get_realistic_diagram_metadata(topic: str, text_content: str = "") -> dict:
-    """Generates metadata for document topic and resolves appropriate asset."""
+def get_realistic_diagram_metadata(topic: str, text_content: str = "", filename: str = "") -> dict:
+    """Generates metadata for document topic and resolves appropriate asset via pipeline."""
     clean = str(topic or "Medical Study Notes").strip().rsplit('.', 1)[0].replace("_", " ").replace("-", " ").title()
+    doc_filename = filename or topic or "Medical_Study_Notes"
     doc_subject, doc_name = detect_primary_subject(clean, text_content)
+    req = {
+        "type": "organ",
+        "subject": doc_name,
+        "purpose": f"Show anatomical structure of {doc_name} relevant to document",
+        "required": True
+    }
+    url, gen, reused = resolve_or_generate_visual(req, text_content, filename=doc_filename)
     return {
         "illustration_suggested": True,
         "organ_system": f"{doc_name.upper()} & CLINICAL STUDY",
@@ -1764,7 +2476,9 @@ def get_realistic_diagram_metadata(topic: str, text_content: str = "") -> dict:
         "subject": f"{doc_name} Clinical & Anatomical Concepts",
         "category": doc_subject,
         "style": "Clean Educational Medical Infographic",
-        "asset_url": resolve_visual_asset(doc_subject, visual_type="cross_section"),
+        "asset_url": url,
+        "generated": gen,
+        "reused": reused,
         "pins": []
     }
 
