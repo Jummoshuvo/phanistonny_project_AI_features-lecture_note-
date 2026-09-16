@@ -274,22 +274,13 @@ def generate_medical_image(prompt: str, filename: str) -> Optional[str]:
     return None
 
 def extract_visual_requirements(doc_title: str, raw_text: str, sections: Optional[List[dict]] = None) -> List[dict]:
-    """Generates structured visual requirements grounded strictly in document content."""
+    """Generates structured visual requirements grounded strictly in document content (Anatomy cards only)."""
     doc_subject, doc_organ_name = detect_primary_subject(doc_title, raw_text, sections)
     text_lower = (raw_text or "").lower()
-    title_lower = (doc_title or "").lower()
     
     requirements = []
     
-    # 1. Organ / Primary Subject
-    requirements.append({
-        "type": "organ",
-        "subject": doc_organ_name,
-        "purpose": f"Show anatomical structure of the {doc_organ_name} relevant to the document",
-        "required": True
-    })
-    
-    # 2. Anatomy / Structure
+    # Anatomy / Structure is the ONLY section that requires an image
     has_anatomy = any("anatomy" in (s.get("heading","") or s.get("title","")).lower() for s in (sections or [])) or "anatomy" in text_lower
     requirements.append({
         "type": "anatomy",
@@ -298,120 +289,43 @@ def extract_visual_requirements(doc_title: str, raw_text: str, sections: Optiona
         "required": True if has_anatomy or doc_organ_name else False
     })
     
-    # 3. Medication / Treatment
-    med_keywords = ["medication", "drug", "drugs", "treatment", "pharmacology", "therapy", "beta blocker", "insulin", "antibiotic", "dosage", "prescription", "inhibitor", "agonist", "antagonist"]
-    has_medication = any(re.search(r'\b' + re.escape(k) + r'\b', text_lower) for k in med_keywords) or any(re.search(r'\b' + re.escape(k) + r'\b', title_lower) for k in med_keywords)
-    
-    requirements.append({
-        "type": "medication",
-        "subject": f"{doc_organ_name} Treatment" if has_medication else "Medication",
-        "purpose": "Show treatment or pharmacological action discussed in document" if has_medication else "N/A",
-        "required": True if has_medication else False
-    })
-    
     return requirements
 
 def build_image_prompt(requirement: dict, document_context: str = "") -> str:
-    """Builds a focused, document-grounded image generation prompt."""
-    v_type = requirement.get("type", "organ")
-    if v_type in ["pathway", "flowchart", "pathophysiology"]:
+    """Builds a focused, document-grounded image generation prompt strictly for Anatomy cards."""
+    v_type = requirement.get("type", "")
+    is_anatomy = requirement.get("is_anatomy") or v_type == "anatomy"
+    if not is_anatomy:
         return ""
+
     subject = requirement.get("subject", "Human Anatomy")
     purpose = requirement.get("purpose", "Show anatomical structure")
     sec_text = requirement.get("section_text", "")
-    doc_topic = requirement.get("doc_topic", "Clinical Subject")
+    doc_topic = requirement.get("doc_topic", "")
     
-    context_snippet = f" Section Details: {sec_text[:250]}." if sec_text else ""
+    context_snippet = f" Section Details: {sec_text[:280]}." if sec_text else ""
+    if doc_topic and doc_topic.lower() not in (subject or "").lower():
+        context_snippet = f" Clinical Context: {doc_topic}.{context_snippet}"
 
-    if v_type == "overview":
-        prompt = (
-            f"Create a clean, medically accurate visual image related to the disease or condition "
-            f"'{doc_topic}' ({subject}). "
-            f"Show only the most relevant organ, body part, or physical medical subject from the uploaded document. "
-            f"Purpose: {purpose}.{context_snippet} "
-            f"Image only. No text, no labels, no captions, no title, no explanation, no infographic, "
-            f"no arrows, no diagrams, no annotations. "
-            f"Clean medical textbook visual, realistic 3D medical illustration, white background."
-        )
-
-    elif v_type == "anatomy":
-        prompt = (
-            f"Create a medically accurate anatomical image of {subject}. "
-            f"Purpose: {purpose}.{context_snippet} "
-            f"Show only the relevant organ or body part and its visible internal anatomical structures. "
-            f"Image only. No text, no labels, no captions, no title, no explanation, no annotations, "
-            f"no arrows, no infographic. "
-            f"Clean medical textbook anatomical illustration, white background."
-        )
-
-    elif v_type == "medication":
-        prompt = (
-            f"Create a clean medical image showing medication relevant to {subject}. "
-            f"Purpose: {purpose}.{context_snippet} "
-            f"Show only appropriate medicine such as tablets, capsules, pills, medication bottles, "
-            f"vials, or syringes when relevant to the document. "
-            f"Image only. No text, no drug names, no labels, no captions, no title, no explanation, "
-            f"no mechanism diagram, no infographic. "
-            f"Clean realistic medical study image, white background."
-        )
-
-    elif v_type == "symptoms":
-        prompt = (
-            f"Create a clean medically accurate visual showing the physical manifestation or clinical "
-            f"symptoms associated with {subject}. "
-            f"Purpose: {purpose}.{context_snippet} "
-            f"Visually represent the outward clinical signs and physical manifestations. "
-            f"Image only. No text, no labels, no captions, no title, no explanation, no annotations, "
-            f"no arrows, no infographic layout. "
-            f"Clean medical textbook clinical photography or realistic illustration, white background."
-        )
-
-    elif v_type == "diagnostic":
-        prompt = (
-            f"Create a clean medical study visual showing diagnostic workup or test equipment relevant to {subject}. "
-            f"Purpose: {purpose}.{context_snippet} "
-            f"Show only relevant diagnostic equipment, lab test tubes, ECG tracing style monitor, or radiological scan screen. "
-            f"Image only. No text, no numbers, no fake values, no labels, no captions, no title, "
-            f"no explanation, no infographic layout. "
-            f"Clean realistic medical visual, white background."
-        )
-
-    elif v_type == "treatment":
-        prompt = (
-            f"Create a clean medical visual showing treatment or clinical intervention for {subject}. "
-            f"Purpose: {purpose}.{context_snippet} "
-            f"Show clinical equipment, supportive care setting, or appropriate medical devices. "
-            f"Image only. No text, no labels, no captions, no title, no explanation, no annotations, "
-            f"no arrows, no infographic. "
-            f"Clean medical study visual, white background."
-        )
-
-    elif v_type == "risk":
-        prompt = (
-            f"Create a clean medical visual representation of risk factors or etiology associated with {subject}. "
-            f"Purpose: {purpose}.{context_snippet} "
-            f"Show relevant biological or environmental factor imagery cleanly. "
-            f"Image only. No text, no labels, no captions, no title, no explanation, no infographic. "
-            f"Clean medical illustration, white background."
-        )
-
-    else:
-        prompt = (
-            f"Create a clean, medically accurate educational visual for {subject}. "
-            f"Purpose: {purpose}.{context_snippet} "
-            f"Image only. No text, no labels, no captions, no title, no explanation, no annotations, "
-            f"no arrows, no diagrams, no infographic. "
-            f"Clean medical illustration, white background."
-        )
+    prompt = (
+        f"Medically accurate anatomical textbook diagram of {subject}. "
+        f"Purpose: {purpose}.{context_snippet} "
+        f"Show the relevant organ and its visible internal anatomical structures, clearly highlighting disease-specific changes and key anatomical features. "
+        f"Must include clean callout pointer lines and arrows pointing directly to key visible anatomical points, "
+        f"such as affected structures, abnormal tissue, fluid buildup, swelling, narrowing, obstruction, "
+        f"plaque, inflammation, or other relevant changes. "
+        f"Keep the annotations minimal, sharp, and directly connected to the corresponding anatomy. "
+        f"Clean medical textbook diagram illustration, crisp detail, white background."
+    )
 
     return prompt
 
 def resolve_or_generate_visual(requirement: dict, raw_text: str = "", filename: str = "") -> Tuple[Optional[str], bool, bool]:
     """
-    Pipeline:
+    Pipeline for Anatomy visuals only:
     1. Check if document-specific generated asset exists in assets/generated/
-    2. Call OpenAI DALL-E API if API key exists to generate NEW document-specific visual and save to assets/generated/{unique_filename}
-    3. Fallback to matching cached asset or static asset if available
+    2. Call OpenAI API if API key exists to generate NEW document-specific visual and save to assets/generated/{unique_filename}
+    3. Fallback to matching cached asset if available
     Returns: (asset_url, generated, reused)
     """
     subject = requirement.get("subject", "")
@@ -419,8 +333,9 @@ def resolve_or_generate_visual(requirement: dict, raw_text: str = "", filename: 
     is_req = requirement.get("required", True)
     sec_title_low = (requirement.get("section_title") or requirement.get("title") or "").lower()
     
-    # Pathophysiology / Pathway cards are rendered as icon-based step flows; no image generation needed
-    if not is_req or v_type in ["pathway", "flowchart", "pathophysiology"] or any(k in sec_title_low for k in ["patho", "pathway", "flowchart", "mechanism"]):
+    # Image generation is strictly restricted to Anatomy cards only
+    is_anatomy = requirement.get("is_anatomy") or v_type == "anatomy" or "anatomy" in sec_title_low or ("structure" in sec_title_low and not any(k in sec_title_low for k in ["cell", "protect", "neuron"]))
+    if not is_req or not is_anatomy:
         return (None, False, False)
         
     clean_fn = os.path.splitext(os.path.basename(filename))[0] if filename else ""
@@ -437,8 +352,7 @@ def resolve_or_generate_visual(requirement: dict, raw_text: str = "", filename: 
     sec_slug = re.sub(r'[^a-z0-9]', '_', raw_sec_name.lower()).strip('_') if raw_sec_name else ""
     sec_slug = re.sub(r'_+', '_', sec_slug)
     
-    # Prioritize section title slug, fallback to visual type (e.g. overview, symptoms, anatomy)
-    card_name = sec_slug or v_type or "visual"
+    card_name = sec_slug or "anatomy"
     if len(card_name) > 30:
         card_name = card_name[:30].rstrip('_')
 
@@ -448,7 +362,7 @@ def resolve_or_generate_visual(requirement: dict, raw_text: str = "", filename: 
     if doc_slug:
         safe_name = f"{doc_slug}_{card_name}.png"
     else:
-        prefix = subj_slug[:30] if subj_slug else "medical_visual"
+        prefix = subj_slug[:30] if subj_slug else "anatomy_visual"
         safe_name = f"{prefix}_{card_name}.png"
         
     gen_dir = os.path.join(os.path.dirname(__file__), "assets", "generated")
@@ -459,17 +373,18 @@ def resolve_or_generate_visual(requirement: dict, raw_text: str = "", filename: 
         return (f"/assets/generated/{safe_name}", False, True)
         
     # 1b. Check if asset exists by visual type or subject in cache
-    cached_asset = check_generated_asset_cache(doc_slug or subj_slug or subject, v_type)
+    cached_asset = check_generated_asset_cache(doc_slug or subj_slug or subject, "anatomy")
     if cached_asset:
         return (cached_asset, False, True)
         
     # 2. Generate new image with OpenAI API
     prompt = build_image_prompt(requirement, raw_text)
+    if not prompt:
+        return (None, False, False)
     gen_url = generate_medical_image(prompt, safe_name)
     if gen_url:
         return (gen_url, True, False)
         
-    # 3. No fallback to pre-setup static images (strictly document-generated visuals)
     return (None, False, False)
 
 
@@ -1108,8 +1023,23 @@ def sanitize_and_group_sections(sections: List[dict]) -> List[dict]:
 
         for b in (sec.get("bullets") or []):
             if isinstance(b, str) and b.strip() and b.strip().lower() not in existing_bullets:
-                card["bullets"].append(b.strip())
-                existing_bullets.add(b.strip().lower())
+                b_clean = b.strip()
+                card["bullets"].append(b_clean)
+                existing_bullets.add(b_clean.lower())
+                # Auto-sync bullets into items to ensure card layout displays all points without layout change
+                if not any(it.get("text", "").strip().lower() == b_clean.lower() for it in card["items"]):
+                    parts = re.split(r':|\s+[–—\-]\s+', b_clean, maxsplit=1)
+                    if len(parts) == 2 and 2 < len(parts[0].strip()) < 35 and len(parts[1].strip()) > 1:
+                        lbl_cand = parts[0].strip().title()
+                        txt_cand = parts[1].strip()
+                    else:
+                        lbl_cand = clean_title.title()
+                        txt_cand = b_clean
+                    card["items"].append({
+                        "label": lbl_cand,
+                        "text": txt_cand
+                    })
+                    existing_item_tuples.add((lbl_cand.lower(), txt_cand.lower()))
 
     # Filter out empty cards (cards with no items, no bullets, and no flows)
     valid_cards = []
@@ -1244,60 +1174,15 @@ def build_modular_visual_dashboard_schema(filename: str, raw_text: str, parsed_a
                 sec_text_lines.append(b)
         sec_text_snippet = " ".join(sec_text_lines[:4])
 
-        # Categorize visual type for section card
-        if "overview" in t_low or (idx == 1 and not any(k in t_low for k in ["anatomy", "patho", "medication"])):
-            v_type = "overview"
-            subj = f"{topic_name} Overview"
-            purpose = f"Show main clinical overview visual for {topic_name}"
-        elif sec.get("isAnatomyCard") or "anatomy" in t_low or "structure" in t_low:
-            v_type = "anatomy"
+        # Strict rule: Only Anatomy card gets image generation; all other cards require no images
+        is_anatomy_card = bool(sec.get("isAnatomyCard") or "anatomy" in t_low or ("structure" in t_low and not any(k in t_low for k in ["cell", "protect", "neuron"])))
+
+        if is_anatomy_card:
             subj = f"{doc_organ_name} Anatomy"
             purpose = f"Show detailed internal anatomy cross-section of {doc_organ_name}"
-        elif sec.get("type") == "flowchart" or sec.get("flows") or "pathway" in t_low or "patho" in t_low:
-            v_type = "pathway"
-            subj = f"{topic_name} Pathophysiology"
-            purpose = "Presented via icon-based step flowchart; no image required."
-        elif any(k in t_low for k in ["medication", "drug", "pharmacolog"]):
-            v_type = "medication"
-            subj = f"{topic_name} Pharmacological Management"
-            purpose = f"Show medication and drug therapy for {topic_name}"
-        elif any(k in t_low for k in ["symptom", "sign", "manifestation"]):
-            v_type = "symptoms"
-            subj = f"{topic_name} Signs & Symptoms"
-            purpose = f"Show clinical symptom presentation for {topic_name}"
-        elif any(k in t_low for k in ["diagnostic", "test", "lab", "assessment", "workup"]):
-            v_type = "diagnostic"
-            subj = f"{topic_name} Diagnostic Workup"
-            purpose = f"Show laboratory indicators and diagnostic findings for {topic_name}"
-        elif any(k in t_low for k in ["treatment", "management", "nursing", "intervention", "care"]):
-            v_type = "treatment"
-            subj = f"{topic_name} Clinical Management"
-            purpose = f"Show treatment strategies and nursing care for {topic_name}"
-        elif any(k in t_low for k in ["risk", "cause", "etiology"]):
-            v_type = "risk"
-            subj = f"{topic_name} Risk Factors"
-            purpose = f"Show etiology and risk factors for {topic_name}"
-        else:
-            v_type = "general"
-            subj = f"{topic_name} - {sec_title}"
-            purpose = f"Educational visual for {sec_title}"
-
-        is_pathway_card = (v_type == "pathway" or sec.get("type") == "flowchart" or bool(sec.get("flows")) or "pathway" in t_low or "patho" in t_low)
-
-        if is_pathway_card:
-            sec_img = ""
-            sec["visual"] = {
-                "required": False,
-                "type": "pathway",
-                "subject": subj,
-                "purpose": "Presented via icon-based step flowchart; no image required.",
-                "image_url": ""
-            }
-            sec["image"] = ""
-            sec["image_url"] = ""
-        else:
             req = {
-                "type": v_type,
+                "type": "anatomy",
+                "is_anatomy": True,
                 "subject": subj,
                 "purpose": purpose,
                 "doc_topic": topic_name,
@@ -1314,13 +1199,23 @@ def build_modular_visual_dashboard_schema(filename: str, raw_text: str, parsed_a
 
             sec["visual"] = {
                 "required": True,
-                "type": v_type,
+                "type": "anatomy",
                 "subject": subj,
                 "purpose": purpose,
                 "image_url": sec_img or ""
             }
             sec["image"] = sec_img or ""
             sec["image_url"] = sec_img or ""
+        else:
+            sec["visual"] = {
+                "required": False,
+                "type": "none",
+                "subject": "",
+                "purpose": "No image required",
+                "image_url": ""
+            }
+            sec["image"] = ""
+            sec["image_url"] = ""
 
     clean_sections = sanitize_and_group_sections(ordered)
     # Cap sections array to maximum 8 cards as required by prompt specification
@@ -1637,24 +1532,16 @@ def sanitize_original_note_sections(original_note: dict, filename: str, raw_text
             else:
                 sec_items.append({"label": clean_title.upper(), "text": cb, "tag": clean_title.upper()})
 
-        sec_type_cat = "anatomy" if "anatomy" in clean_title.lower() else ("pathway" if "patho" in clean_title.lower() or "pathway" in clean_title.lower() else ("medication" if any(k in clean_title.lower() for k in ["medication", "drug", "pharmaco"]) else "general"))
+        is_anatomy_sec = "anatomy" in clean_title.lower() or bool(sec.get("isAnatomyCard"))
+        is_pathway_sec = not is_anatomy_sec and ("patho" in clean_title.lower() or "pathway" in clean_title.lower() or sec.get("type") == "flowchart")
         
-        is_pathway_sec = sec_type_cat == "pathway" or "patho" in clean_title.lower() or "pathway" in clean_title.lower() or sec.get("type") == "flowchart"
-        if is_pathway_sec:
-            sec_img = ""
-            sec_visual = {
-                "required": False,
-                "type": "pathway",
-                "subject": clean_title,
-                "purpose": "Presented via icon-based step flowchart; no image required.",
-                "image_url": ""
-            }
-        else:
+        if is_anatomy_sec:
             req = {
-                "type": sec_type_cat,
+                "type": "anatomy",
+                "is_anatomy": True,
                 "subject": clean_title,
                 "section_title": clean_title,
-                "purpose": f"Visual notes block for {clean_title}",
+                "purpose": f"Anatomical structure visual for {clean_title}",
                 "required": True
             }
             existing_img = sec.get("image") or sec.get("image_url") or (sec.get("visual") or {}).get("image_url")
@@ -1664,10 +1551,19 @@ def sanitize_original_note_sections(original_note: dict, filename: str, raw_text
                 sec_img, _, _ = resolve_or_generate_visual(req, raw_text=raw_text, filename=filename)
             sec_visual = {
                 "required": True,
-                "type": sec_type_cat,
+                "type": "anatomy",
                 "subject": clean_title,
-                "purpose": f"Visual notes block for {clean_title}",
+                "purpose": f"Anatomical structure visual for {clean_title}",
                 "image_url": sec_img or ""
+            }
+        else:
+            sec_img = ""
+            sec_visual = {
+                "required": False,
+                "type": "none",
+                "subject": clean_title,
+                "purpose": "No image required",
+                "image_url": ""
             }
 
         clean_sections.append({
@@ -2396,6 +2292,7 @@ def process_deterministic_ai_edit(plan: dict, instruction: str) -> dict:
     if "sections" in updated:
         updated["sections"] = sanitize_and_group_sections(updated["sections"])
         updated["cards"] = updated["sections"]
+    updated["is_visual_generated"] = True
 
     return updated
 
@@ -2436,7 +2333,7 @@ def apply_ai_edit(plan: dict, instruction: str) -> dict:
 USER MODIFICATION INSTRUCTION:
 "{instruction}"
 
-Please return the updated valid JSON object with matching "sections" structure after applying the requested modification."""
+Please return the updated valid JSON object with matching "sections" structure after applying the requested modification. Ensure that all card content and points are included in the "items" array as objects with "label" and "text" keys (e.g. {{"label": "...", "text": "..."}}) as well as in "bullets" so every detail displays properly."""
 
     try:
         openai_json = call_openai_api(AI_EDIT_SYSTEM_PROMPT, user_msg)
@@ -2446,6 +2343,7 @@ Please return the updated valid JSON object with matching "sections" structure a
                 updated = json.loads(json.dumps(plan))
                 updated["sections"] = sanitize_and_group_sections(new_secs)
                 updated["cards"] = updated["sections"]
+                updated["is_visual_generated"] = True
                 if openai_json.get("theme"):
                     updated["theme"] = openai_json["theme"]
                 return updated
@@ -2463,8 +2361,9 @@ def get_realistic_diagram_metadata(topic: str, text_content: str = "", filename:
     doc_filename = filename or topic or "Medical_Study_Notes"
     doc_subject, doc_name = detect_primary_subject(clean, text_content)
     req = {
-        "type": "organ",
-        "subject": doc_name,
+        "type": "anatomy",
+        "is_anatomy": True,
+        "subject": f"{doc_name} Anatomy",
         "purpose": f"Show anatomical structure of {doc_name} relevant to document",
         "required": True
     }

@@ -175,28 +175,25 @@ async def generate_diagram_image(payload: DiagramRequest):
         doc_subject, doc_name = detect_primary_subject(topic, text)
         
         topic_lower = topic.lower()
-        if "pathway" in topic_lower or "flow" in topic_lower or "mechanism" in topic_lower or "patho" in topic_lower:
+        is_anatomy = "anatomy" in topic_lower or "structure" in topic_lower or getattr(payload, 'is_anatomy', False)
+        
+        if not is_anatomy:
             return JSONResponse(content={
                 "success": False,
                 "generated": False,
                 "reused": False,
                 "asset_url": None,
-                "type": "pathway",
+                "type": "none",
                 "subject": doc_name,
-                "message": "No image required for Pathophysiology/Pathway; presented as an icon-based step flowchart."
+                "message": "Image generation is only enabled for Anatomy cards."
             })
-        elif "anatomy" in topic_lower or "structure" in topic_lower:
-            vis_type = "anatomy"
-        elif "medication" in topic_lower or "drug" in topic_lower or "treatment" in topic_lower:
-            vis_type = "medication"
-        else:
-            vis_type = "organ"
             
         req = {
-            "type": vis_type,
-            "subject": doc_name,
-            "section_title": topic or vis_type,
-            "purpose": f"Show {vis_type} for {doc_name} as described in lecture notes",
+            "type": "anatomy",
+            "is_anatomy": True,
+            "subject": f"{doc_name} Anatomy",
+            "section_title": topic or f"{doc_name} Anatomy",
+            "purpose": f"Show detailed internal anatomy cross-section of {doc_name}",
             "required": True
         }
         
@@ -209,8 +206,8 @@ async def generate_diagram_image(payload: DiagramRequest):
                 "generated": generated,
                 "reused": reused,
                 "asset_url": asset_url,
-                "type": vis_type,
-                "subject": doc_name
+                "type": "anatomy",
+                "subject": f"{doc_name} Anatomy"
             })
         else:
             return JSONResponse(content={
@@ -218,8 +215,8 @@ async def generate_diagram_image(payload: DiagramRequest):
                 "generated": False,
                 "reused": False,
                 "asset_url": None,
-                "type": vis_type,
-                "subject": doc_name,
+                "type": "anatomy",
+                "subject": f"{doc_name} Anatomy",
                 "error": "Image generation failed or API key unavailable"
             })
     except Exception as e:

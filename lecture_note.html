@@ -1654,7 +1654,11 @@
           if (res.asset_url && currentPlan) {
             currentPlan.main_visual = res;
             if (currentPlan.sections && currentPlan.sections.length > 0) {
-              currentPlan.sections[0].image = res.asset_url;
+              const anatSec = currentPlan.sections.find(s => s.isAnatomyCard || /anatomy|structure/i.test((s.title || s.heading || '').toLowerCase()));
+              if (anatSec) {
+                anatSec.image = res.asset_url;
+                anatSec.image_url = res.asset_url;
+              }
             }
             render(currentPlan);
           }
@@ -1691,11 +1695,6 @@
     function closeDiagramLightbox() {
       const modal = document.getElementById('diagram-lightbox-modal');
       if (modal) modal.style.display = 'none';
-    }
-
-    // Helper for API fetches
-    async function apiFetch(url, options = {}) {
-      return fetch(url, options);
     }
 
     // --- File Upload & Drag-and-Drop Handlers ---
@@ -2177,12 +2176,8 @@
         let canonicalTitle = cleanTitle.toUpperCase();
         if (canonicalTitle.includes("OVERVIEW")) canonicalTitle = "OVERVIEW";
 
-        const isNonPathwayTitle = /cause|diagnostic|nursing|intervention|medication|drug|complication|overview/i.test(canonicalTitle.toLowerCase());
-        const isPathoTitle = !isNonPathwayTitle && /patho|pathway|flowchart|process|mechanism/i.test(canonicalTitle.toLowerCase());
-        let secImg = sec.image || sec.image_url || (sec.visual && sec.visual.image_url) || sec.cross_section_image_url || sec.organ_image_url || "";
-        if (isPathoTitle || sec.type === 'flowchart' || sec.section_type === 'flowchart' || (sec.flows && sec.flows.length > 0 && !/stage|phase/i.test(canonicalTitle.toLowerCase()))) {
-          secImg = "";
-        }
+        const isAnatTitle = sec.isAnatomyCard || /anatomy|structure/i.test(canonicalTitle.toLowerCase());
+        let secImg = isAnatTitle ? (sec.image || sec.image_url || (sec.visual && sec.visual.image_url) || sec.cross_section_image_url || sec.organ_image_url || "") : "";
 
         if (!groupedCards[canonicalTitle]) {
           const secType = sec.type || sec.section_type || "tagged_items";
@@ -2303,7 +2298,7 @@
       if (!plan) return '';
 
       // If Visual Notes haven't been generated yet, render placeholder inviting user to generate
-      if (plan.is_visual_generated === false || (!plan.bottom_panels && !(plan.header && plan.header.subtitle && plan.header.subtitle.includes('3D Cards')))) {
+      if (plan.is_visual_generated === false) {
         return `
           <div class="flex flex-col items-center justify-center p-10 bg-white rounded-2xl border border-slate-200 shadow-xs text-center my-6 gap-3">
             <div class="w-14 h-14 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-2xl font-bold">✨</div>
@@ -2843,6 +2838,16 @@
 
             const validGroups = subGroups.filter(g => g.subTitle || g.items.length);
 
+            // Collect rendered items to identify any unrendered bullets
+            const renderedTexts = new Set();
+            validGroups.forEach(grp => {
+              (grp.items || []).forEach(t => renderedTexts.add(String(t).toLowerCase().trim()));
+            });
+            const extraBullets = (Array.isArray(sec.bullets) ? sec.bullets : []).filter(b => {
+              const str = String(b || '').toLowerCase().trim();
+              return str && !renderedTexts.has(str);
+            });
+
             html += `<div class="flex flex-col gap-3">`;
             validGroups.forEach(grp => {
               if (grp.subTitle) {
@@ -2862,6 +2867,19 @@
                 html += `</div>`;
               }
             });
+
+            if (extraBullets.length) {
+              html += `<div class="flex flex-col gap-1.5 pl-0.5">`;
+              extraBullets.forEach(bText => {
+                html += `
+                  <div class="flex items-start gap-2 text-xs text-slate-700 leading-normal">
+                    <span class="${themeStyle.check} font-bold text-sm leading-none flex-shrink-0 mt-0.5">✓</span>
+                    <span class="flex-1">${renderRichHTML(bText)}</span>
+                  </div>
+                `;
+              });
+              html += `</div>`;
+            }
             html += `</div>`;
           } else if (sec.bullets && sec.bullets.length) {
             html += `<div class="flex flex-col gap-1.5">`;
@@ -2879,14 +2897,14 @@
           }
           html += `</div>`; // End Left Text Column
 
-          // Image Column Resolution (Pathway/Pathophysiology cards are icon-based flows and never display images)
+          // Image Column Resolution: strictly only for Anatomy cards
           function resolveClientCardImage(secTitle, organType, secObj) {
             const titleLow = String(secTitle || '').toLowerCase();
-            const typeLow = String((secObj && (secObj.type || secObj.section_type)) || '').toLowerCase();
-            if (isPathwaySection || /patho|pathway|flowchart|mechanism/i.test(titleLow) || typeLow === 'flowchart' || typeLow === 'pathophysiology') {
+            const isAnat = Boolean((secObj && secObj.isAnatomyCard) || titleLow.includes('anatomy') || (titleLow.includes('structure') && !titleLow.includes('cell') && !titleLow.includes('protect')));
+            if (!isAnat) {
               return '';
             }
-            let img = secObj.image || secObj.image_url || (secObj.visual && secObj.visual.image_url) || secObj.cross_section_image_url || secObj.organ_image_url || '';
+            let img = (secObj && (secObj.image || secObj.image_url || (secObj.visual && secObj.visual.image_url) || secObj.cross_section_image_url || secObj.organ_image_url)) || '';
             return img || '';
           }
 
@@ -3067,13 +3085,14 @@
     const promptForm = document.getElementById('prompt-form');
     const chatLog = document.getElementById('chat-log');
 
-    // Clickable Suggestion Chips: Populates text box for user review before send
+    // Clickable Suggestion Chips: Populates text box and immediately submits prompt
     document.querySelectorAll('.chip-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const promptText = btn.dataset.prompt;
         if (!promptText) return;
         promptInput.value = promptText;
-        promptInput.focus();
+        submitPrompt(promptText);
+        promptInput.value = '';
       });
     });
 
@@ -3234,7 +3253,29 @@
                 if (sec && typeof sec === 'object') sec.accent = targetColor;
               });
             }
+          } else {
+            // Universal custom prompt fallback: append user instruction into most relevant card
+            const listToProcess = (updatedPlan.sections && updatedPlan.sections.length) ? updatedPlan.sections : (updatedPlan.cards || []);
+            if (listToProcess.length > 0) {
+              const targetSec = listToProcess.find(s => {
+                const t = (s.title || s.heading || '').toLowerCase();
+                return instructionText.toLowerCase().split(/\s+/).some(w => w.length > 3 && t.includes(w));
+              }) || listToProcess[0];
+
+              if (targetSec) {
+                if (!Array.isArray(targetSec.items)) targetSec.items = [];
+                const words = instructionText.split(/\s+/);
+                const cleanLabel = words.slice(0, 3).join(' ').replace(/[^a-zA-Z0-9\s]/g, '').trim().toUpperCase() || "NOTE";
+                targetSec.items.push({
+                  label: cleanLabel,
+                  text: instructionText
+                });
+                if (!Array.isArray(targetSec.bullets)) targetSec.bullets = [];
+                targetSec.bullets.push(instructionText);
+              }
+            }
           }
+          updatedPlan.is_visual_generated = true;
           currentPlan = updatedPlan;
           render(updatedPlan);
         }
