@@ -1026,8 +1026,8 @@ def sanitize_and_group_sections(sections: List[dict]) -> List[dict]:
                 b_clean = b.strip()
                 card["bullets"].append(b_clean)
                 existing_bullets.add(b_clean.lower())
-                # Auto-sync bullets into items to ensure card layout displays all points without layout change
-                if not any(it.get("text", "").strip().lower() == b_clean.lower() for it in card["items"]):
+                # Auto-sync bullets into items only if not already represented in card items
+                if not any(it.get("text", "").strip().lower() == b_clean.lower() or b_clean.lower() in it.get("text", "").strip().lower() or it.get("text", "").strip().lower() in b_clean.lower() for it in card["items"]):
                     parts = re.split(r':|\s+[–—\-]\s+', b_clean, maxsplit=1)
                     if len(parts) == 2 and 2 < len(parts[0].strip()) < 35 and len(parts[1].strip()) > 1:
                         lbl_cand = parts[0].strip().title()
@@ -1808,12 +1808,11 @@ DO NOT remove important sections.
 
 Instead:
 
-- Identify cards/sections containing too much information.
-- Reduce long paragraphs into short bullets.
-- Prefer 2–3 concise points where appropriate.
+- Every single card MUST contain EXACTLY 3 points of information (the 3 most critical, high-yield points).
+- If a card has more than 3 items or bullet points, identify and keep ONLY the top 3 most important points (e.g. definition, primary mechanism/cause, hallmark sign, or key treatment), removing lower priority details.
+- Reduce long paragraphs into short, concise single sentences for each of the 3 points.
 - Shorten unnecessarily long sentences.
-- Keep important information.
-- Remove repetition.
+- Keep important information and remove repetition.
 - Keep the same headings.
 - Keep the same card positions.
 - Keep the same visual structure.
@@ -1860,12 +1859,13 @@ Keep:
 - Same layout
 - Same illustrations
 - Same diagrams
+- CRITICAL: KEEP EXACTLY THE SAME NUMBER OF POINTS / ITEMS / BULLETS IN EACH CARD as were originally present. DO NOT remove, omit, or reduce any points or items.
 
 Only simplify the language:
 
 - Rewrite complex medical, anatomical, or scientific jargon into clear, easy-to-read, plain English suitable for 1st-year beginner students.
 - Whenever a complex medical term is used (e.g. Dyspnea, Pathophysiology, Atelectasis, Infarction, Etiology), keep the term but ALWAYS follow it with a clear parenthetical explanation (e.g. "Dyspnea (shortness of breath)", "Etiology (Causes)", "Hypoxemia (low blood oxygen)").
-- Break down dense multi-clause sentences into short, simple sentences and clear bullet points.
+- Break down dense multi-clause sentences into short, simple sentences.
 - Simplify section titles and item labels to be intuitive (e.g. "Etiology & Pathogenesis" -> "Causes & How It Happens (Etiology)").
 
 ==================================================
@@ -2053,11 +2053,64 @@ def fuzzy_find_target_section(instruction: str, sections: list) -> dict:
 
 
 
+STUDENT_SIMPLIFICATIONS = [
+    (r'\bdyspnea\b(?!\s*\()', 'shortness of breath (dyspnea)'),
+    (r'\bhypoxemia\b(?!\s*\()', 'low blood oxygen levels (hypoxemia)'),
+    (r'\bhypoxia\b(?!\s*\()', 'low tissue oxygen (hypoxia)'),
+    (r'\betiology\b(?!\s*\()', 'causes & origin (etiology)'),
+    (r'\bpathogenesis\b(?!\s*\()', 'how the disease develops (pathogenesis)'),
+    (r'\bpathophysiology\b(?!\s*\()', 'body function changes (pathophysiology)'),
+    (r'\batelectasis\b(?!\s*\()', 'collapsed lung air sacs (atelectasis)'),
+    (r'\binfarction\b(?!\s*\()', 'tissue death due to blocked blood supply (infarction)'),
+    (r'\bischemia\b(?!\s*\()', 'reduced blood flow (ischemia)'),
+    (r'\bnecrosis\b(?!\s*\()', 'cell and tissue death (necrosis)'),
+    (r'\bedema\b(?!\s*\()', 'fluid swelling (edema)'),
+    (r'\bhemorrhage\b(?!\s*\()', 'severe bleeding (hemorrhage)'),
+    (r'\btachycardia\b(?!\s*\()', 'rapid heart rate (tachycardia)'),
+    (r'\bbradycardia\b(?!\s*\()', 'slow heart rate (bradycardia)'),
+    (r'\bhypertension\b(?!\s*\()', 'high blood pressure (hypertension)'),
+    (r'\bhypotension\b(?!\s*\()', 'low blood pressure (hypotension)'),
+    (r'\btachypnea\b(?!\s*\()', 'rapid breathing rate (tachypnea)'),
+    (r'\bcyanosis\b(?!\s*\()', 'bluish skin tint from low oxygen (cyanosis)'),
+    (r'\bsepsis\b(?!\s*\()', 'severe body-wide infection response (sepsis)'),
+    (r'\bidiopathic\b(?!\s*\()', 'unknown cause (idiopathic)'),
+    (r'\bprophylaxis\b(?!\s*\()', 'prevention step (prophylaxis)'),
+    (r'\bprophylactic\b(?!\s*\()', 'preventative (prophylactic)'),
+    (r'\bdiagnosis\b(?!\s*\()', 'identifying the disease (diagnosis)'),
+    (r'\basymptomatic\b(?!\s*\()', 'without noticeable symptoms (asymptomatic)'),
+    (r'\bthrombosis\b(?!\s*\()', 'blood clot formation (thrombosis)'),
+    (r'\bembolism\b(?!\s*\()', 'traveling blood clot blocking an artery (embolism)'),
+    (r'\bauscultation\b(?!\s*\()', 'listening with a stethoscope (auscultation)'),
+    (r'\bpalpation\b(?!\s*\()', 'feeling by hand (palpation)'),
+    (r'\bfibrosis\b(?!\s*\()', 'tissue scarring and stiffness (fibrosis)'),
+    (r'\bstenosis\b(?!\s*\()', 'abnormal narrowing (stenosis)'),
+    (r'\beffusion\b(?!\s*\()', 'fluid collection (effusion)'),
+    (r'\bsyncope\b(?!\s*\()', 'fainting (syncope)'),
+    (r'\bpruritus\b(?!\s*\()', 'itching sensation (pruritus)'),
+    (r'\berythema\b(?!\s*\()', 'skin redness (erythema)'),
+    (r'\bleukocytosis\b(?!\s*\()', 'high white blood cell count (leukocytosis)'),
+    (r'\bthrombocytopenia\b(?!\s*\()', 'low platelet count (thrombocytopenia)'),
+    (r'\banemia\b(?!\s*\()', 'low red blood cell count (anemia)'),
+    (r'\barrhythmia\b(?!\s*\()', 'irregular heart rhythm (arrhythmia)'),
+    (r'\bjaundice\b(?!\s*\()', 'yellowish skin and eyes from liver issues (jaundice)'),
+    (r'\bcongenital\b(?!\s*\()', 'present from birth (congenital)'),
+    (r'\bcharacterized by\b', 'marked by'),
+    (r'\bmanifests as\b', 'shows up as'),
+    (r'\bsecondary to\b', 'caused by'),
+    (r'\bconcomitant with\b', 'occurring alongside'),
+    (r'\bfirst-line therapy\b', 'first choice treatment'),
+    (r'\bpharmacotherapy\b', 'medication treatment'),
+    (r'\bcontraindicated\b', 'unsafe / should not be used (contraindicated)'),
+    (r'\badverse effects\b', 'side effects'),
+]
+
 def simplify_text_for_students(text: str) -> str:
-    """Simplifies complex text by cleaning formatting and breaking into clear student-friendly sentences."""
+    """Simplifies complex medical text into plain English with clear parenthetical explanations for 1st year students."""
     if not text or not isinstance(text, str):
         return ""
     clean = clean_markdown_stars(re.sub(r'<[^>]+>', '', text)).strip()
+    for pattern, replacement in STUDENT_SIMPLIFICATIONS:
+        clean = re.sub(pattern, replacement, clean, flags=re.IGNORECASE)
     return clean
 
 def extract_elaboration_from_document_text(plan: dict, target_sec: dict, instruction: str = "") -> Tuple[str, str]:
@@ -2174,14 +2227,48 @@ def process_deterministic_ai_edit(plan: dict, instruction: str) -> dict:
                 if isinstance(fl, dict) and fl.get("label"):
                     fl["label"] = clean_markdown_stars(re.sub(r'<[^>]+>', '', str(fl["label"])))
 
-    # Rule 3: Concise / Shorter (Keeps 3-5 concise items/bullets/flows per card, max 5)
+    # Rule 3: Concise / Shorter (Exactly 3 most important information points per card)
     if any(k in text_lower for k in ["concise", "shorter", "brief", "summarize", "short"]):
         for sec in sections:
             if isinstance(sec, dict):
-                # 1. Truncate items to max 5 items, each max 1 sentence
-                if sec.get("items") and isinstance(sec["items"], list):
-                    sec["items"] = sec["items"][:5]
-                    for it in sec["items"]:
+                items = sec.get("items") or []
+                if items and isinstance(items, list):
+                    if len(items) > 3:
+                        def item_importance_score(it_obj, idx):
+                            score = 0.0
+                            lbl = (it_obj.get("label") or "").upper()
+                            txt = (it_obj.get("text") or "").lower()
+                            # Priority clinical labels
+                            if any(k in lbl for k in ["DEFINITION", "OVERVIEW", "KEY CONCEPT", "WHAT IT IS"]):
+                                score += 20
+                            elif any(k in lbl for k in ["HALLMARK", "PRIMARY", "FIRST-LINE", "GOLD STANDARD", "CRITICAL"]):
+                                score += 18
+                            elif any(k in lbl for k in ["ETIOLOGY", "CAUSE", "PATHOPHYSIOLOGY", "MECHANISM"]):
+                                score += 15
+                            elif any(k in lbl for k in ["DIAGNOSIS", "TRIAD", "SYMPTOMS", "PRESENTATION", "CLINICAL"]):
+                                score += 14
+                            elif any(k in lbl for k in ["TREATMENT", "MANAGEMENT", "INTERVENTION", "MEDICATION"]):
+                                score += 12
+                            elif any(k in lbl for k in ["COMPLICATION", "PROGNOSIS", "RISK"]):
+                                score += 10
+
+                            # Content keyword signals
+                            if any(k in txt for k in ["hallmark", "most common", "triad", "first-line", "gold standard", "diagnostic", "caused by", "primary"]):
+                                score += 5
+
+                            # Positional bonus for foundational points
+                            score += max(0, 5 - idx)
+                            return score
+
+                        indexed_items = list(enumerate(items))
+                        indexed_items.sort(key=lambda x: item_importance_score(x[1], x[0]), reverse=True)
+                        top_3_indexed = indexed_items[:3]
+                        # Restore original relative ordering for logical narrative
+                        top_3_indexed.sort(key=lambda x: x[0])
+                        items = [x[1] for x in top_3_indexed]
+
+                    # Shorten each of the 3 items to 1 concise sentence
+                    for it in items:
                         if isinstance(it, dict) and it.get("text"):
                             sentences = [s.strip() for s in re.split(r'\.\s+', str(it["text"])) if s.strip()]
                             if sentences:
@@ -2190,24 +2277,28 @@ def process_deterministic_ai_edit(plan: dict, instruction: str) -> dict:
                                     first_s += '.'
                                 it["text"] = first_s
 
-                # 2. Truncate bullets to max 5 bullets, each max 1 sentence
-                if sec.get("bullets") and isinstance(sec["bullets"], list):
+                    sec["items"] = items
+                    sec["bullets"] = [it.get("text") for it in items if isinstance(it, dict) and it.get("text")]
+
+                elif sec.get("bullets") and isinstance(sec["bullets"], list):
+                    bullets = [b for b in sec["bullets"] if isinstance(b, str) and b.strip()]
+                    if len(bullets) > 3:
+                        bullets = bullets[:3]
                     short_bullets = []
-                    for b in sec["bullets"][:5]:
-                        if isinstance(b, str) and b.strip():
-                            sentences = [s.strip() for s in re.split(r'\.\s+', b) if s.strip()]
-                            if sentences:
-                                first_s = sentences[0]
-                                if not first_s.endswith('.'):
-                                    first_s += '.'
-                                short_bullets.append(first_s)
+                    for b in bullets:
+                        sentences = [s.strip() for s in re.split(r'\.\s+', b) if s.strip()]
+                        if sentences:
+                            first_s = sentences[0]
+                            if not first_s.endswith('.'):
+                                first_s += '.'
+                            short_bullets.append(first_s)
                     sec["bullets"] = short_bullets
 
-                # 3. Truncate flows to max 5 steps
-                if sec.get("flows") and isinstance(sec["flows"], list):
-                    sec["flows"] = sec["flows"][:5]
+                # Truncate flows to max 3 steps
+                if sec.get("flows") and isinstance(sec["flows"], list) and len(sec["flows"]) > 3:
+                    sec["flows"] = [sec["flows"][0], sec["flows"][len(sec["flows"]) // 2], sec["flows"][-1]]
 
-                # 4. Truncate content to max 1 sentence
+                # Truncate content to max 1 sentence
                 if sec.get("content") and isinstance(sec["content"], str):
                     sentences = [s.strip() for s in re.split(r'\.\s+', sec["content"]) if s.strip()]
                     if sentences:
@@ -2252,14 +2343,18 @@ def process_deterministic_ai_edit(plan: dict, instruction: str) -> dict:
             if isinstance(sec, dict):
                 # Apply pastel colors suitable for students
                 sec["accent"] = "sky"
+                # PRESERVES ALL ITEMS without dropping any point
                 if sec.get("items") and isinstance(sec["items"], list):
                     for it in sec["items"]:
-                        if isinstance(it, dict) and it.get("text"):
-                            it["text"] = simplify_text_for_students(it["text"])
-                        if isinstance(it, dict) and it.get("label"):
-                            it["label"] = simplify_text_for_students(it["label"])
+                        if isinstance(it, dict):
+                            if it.get("text"):
+                                it["text"] = simplify_text_for_students(it["text"])
+                            if it.get("label"):
+                                it["label"] = simplify_text_for_students(it["label"])
+                # PRESERVES ALL BULLETS without dropping any point
                 if sec.get("bullets") and isinstance(sec["bullets"], list):
                     sec["bullets"] = [simplify_text_for_students(b) for b in sec["bullets"] if isinstance(b, str) and b.strip()]
+                # PRESERVES ALL FLOWS without dropping any point
                 if sec.get("flows") and isinstance(sec["flows"], list):
                     for fl in sec["flows"]:
                         if isinstance(fl, dict) and fl.get("label"):
@@ -2282,23 +2377,25 @@ def process_deterministic_ai_edit(plan: dict, instruction: str) -> dict:
         if target_sec and isinstance(target_sec, dict):
             elab_label, elab_text = extract_elaboration_from_document_text(plan, target_sec, instruction)
 
-            if target_sec.get("items") and isinstance(target_sec["items"], list):
-                if not any(it.get("label") == elab_label for it in target_sec["items"] if isinstance(it, dict)):
-                    target_sec["items"].append({
-                        "label": elab_label,
-                        "text": elab_text
-                    })
+            if not isinstance(target_sec.get("items"), list):
+                target_sec["items"] = []
+            if not any(it.get("label") == elab_label for it in target_sec["items"] if isinstance(it, dict)):
+                target_sec["items"].append({
+                    "label": elab_label,
+                    "text": elab_text
+                })
+            if isinstance(target_sec.get("bullets"), list):
+                if not any(elab_text in str(b) for b in target_sec["bullets"]):
+                    target_sec["bullets"].append(elab_text)
 
-    if "sections" in updated:
-        updated["sections"] = sanitize_and_group_sections(updated["sections"])
-        updated["cards"] = updated["sections"]
+    updated["sections"] = sections
+    updated["cards"] = sections
     updated["is_visual_generated"] = True
-
     return updated
 
 
 def apply_ai_edit(plan: dict, instruction: str) -> dict:
-    """Applies user's modification prompt to Visual Notes JSON schema dynamically using OpenAI API, falling back to deterministic engine."""
+    """Applies user's modification prompt targetedly to the relevant card, adding exactly 1 bullet point while keeping all layout and images 100% intact."""
     text_lower = instruction.strip().lower()
     
     # Route structured instructions directly to deterministic engine to guarantee exact rule application
@@ -2311,44 +2408,78 @@ def apply_ai_edit(plan: dict, instruction: str) -> dict:
         return process_deterministic_ai_edit(plan, instruction)
 
     sections = plan.get("sections") or plan.get("cards") or []
-    
-    compact_plan = {
-        "title": plan.get("title", ""),
-        "sections": [
-            {
-                "id": sec.get("id"),
-                "title": sec.get("title") or sec.get("heading", ""),
-                "type": sec.get("type") or sec.get("section_type", ""),
-                "items": sec.get("items", []),
-                "bullets": sec.get("bullets", []),
-                "flows": sec.get("flows", [])
-            }
-            for sec in sections if isinstance(sec, dict)
-        ]
-    }
+    if not sections:
+        return process_deterministic_ai_edit(plan, instruction)
 
-    user_msg = f"""CURRENT VISUAL NOTES JSON SCHEMA:
-{json.dumps(compact_plan, indent=2)}
+    # Provide available cards context so LLM can identify target card and write 1 specific bullet point
+    card_summaries = []
+    for s_idx, sec in enumerate(sections):
+        if not isinstance(sec, dict):
+            continue
+        c_id = sec.get("id") or f"card_{s_idx}"
+        c_title = sec.get("title") or sec.get("heading") or f"Card {s_idx + 1}"
+        card_summaries.append({"id": c_id, "title": c_title})
 
-USER MODIFICATION INSTRUCTION:
-"{instruction}"
+    custom_system_prompt = (
+        "You are an expert clinical medical educator assisting with NCLEX visual study notes.\n"
+        "The user wants to add or update specific information based on a prompt.\n"
+        "Your task is to select the single most relevant card from the provided list of cards, "
+        "and generate exactly ONE concise, high-yield clinical bullet point answering the user's prompt.\n"
+        "You MUST return a JSON object with:\n"
+        "- 'target_card_id': The exact 'id' of the most relevant card from the cards list\n"
+        "- 'target_card_title': The title of that chosen card\n"
+        "- 'label': A short uppercase clinical tag (1-3 words, e.g. 'CLINICAL NOTE', 'ASSESSMENT', 'DIAGNOSIS', 'INTERVENTION', 'PATHOLOGY', 'RISK FACTOR')\n"
+        "- 'text': Exactly 1-2 concise, clear, high-yield sentences providing the exact information requested.\n"
+        "Do not regenerate other cards or rewrite the entire layout. Only return this single bullet point JSON object."
+    )
 
-Please return the updated valid JSON object with matching "sections" structure after applying the requested modification. Ensure that all card content and points are included in the "items" array as objects with "label" and "text" keys (e.g. {{"label": "...", "text": "..."}}) as well as in "bullets" so every detail displays properly."""
+    user_msg = (
+        f"AVAILABLE CARDS IN VISUAL NOTES:\n{json.dumps(card_summaries, indent=2)}\n\n"
+        f"USER MODIFICATION INSTRUCTION:\n\"{instruction}\"\n\n"
+        "Identify the single most relevant card and return the bullet point JSON object."
+    )
 
     try:
-        openai_json = call_openai_api(AI_EDIT_SYSTEM_PROMPT, user_msg)
-        if openai_json and isinstance(openai_json, dict) and ("sections" in openai_json or "cards" in openai_json):
-            new_secs = openai_json.get("sections") or openai_json.get("cards") or []
-            if new_secs and isinstance(new_secs, list):
-                updated = json.loads(json.dumps(plan))
-                updated["sections"] = sanitize_and_group_sections(new_secs)
-                updated["cards"] = updated["sections"]
+        openai_json = call_openai_api(custom_system_prompt, user_msg)
+        if openai_json and isinstance(openai_json, dict) and (openai_json.get("label") or openai_json.get("text")):
+            target_id = str(openai_json.get("target_card_id") or "").strip()
+            target_title = str(openai_json.get("target_card_title") or "").strip().lower()
+            new_label = clean_markdown_stars(str(openai_json.get("label") or "NOTE")).strip().upper()
+            new_text = clean_markdown_stars(str(openai_json.get("text") or instruction)).strip()
+
+            updated = json.loads(json.dumps(plan))
+            up_sections = updated.get("sections") or updated.get("cards") or []
+
+            target_sec = None
+            if target_id:
+                target_sec = next((s for s in up_sections if str(s.get("id") or "") == target_id), None)
+            if not target_sec and target_title:
+                target_sec = next((s for s in up_sections if target_title in (s.get("title") or s.get("heading") or "").lower()), None)
+            if not target_sec:
+                target_sec = fuzzy_find_target_section(instruction, up_sections)
+            if not target_sec and up_sections:
+                target_sec = up_sections[0]
+
+            if target_sec and isinstance(target_sec, dict):
+                if not isinstance(target_sec.get("items"), list):
+                    target_sec["items"] = []
+                if not isinstance(target_sec.get("bullets"), list):
+                    target_sec["bullets"] = []
+
+                # Append the targeted bullet point to the related card
+                target_sec["items"].append({
+                    "label": new_label,
+                    "text": new_text
+                })
+                target_sec["bullets"].append(new_text)
+
+                # Guarantee card and image preservation
+                updated["sections"] = up_sections
+                updated["cards"] = up_sections
                 updated["is_visual_generated"] = True
-                if openai_json.get("theme"):
-                    updated["theme"] = openai_json["theme"]
                 return updated
     except Exception as e:
-        print(f"[AI Edit OpenAI Exception] {e}")
+        print(f"[AI Edit Custom Point OpenAI Exception] {e}")
 
     return process_deterministic_ai_edit(plan, instruction)
 

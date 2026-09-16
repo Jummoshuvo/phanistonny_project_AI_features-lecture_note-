@@ -1032,12 +1032,10 @@
               <div class="examples-section">
                 <span class="examples-label">TRY THESE EXAMPLES:</span>
                 <div class="chip-list">
-                  <button class="chip-btn" data-prompt="Make it more concise">Make it more concise</button>
-                  <button class="chip-btn" data-prompt="Highlight key terms in red">Highlight key terms in red</button>
-                  <button class="chip-btn" data-prompt="Simplify for first year students">Simplify for first year
-                    students</button>
-                  <button class="chip-btn" data-prompt="Change the color theme to pastel">Change the color theme to
-                    pastel</button>
+                  <button type="button" class="chip-btn" data-prompt="Make it more concise">Make it more concise</button>
+                  <button type="button" class="chip-btn" data-prompt="Highlight key terms in red">Highlight key terms in red</button>
+                  <button type="button" class="chip-btn" data-prompt="Simplify for first year students">Simplify for first year students</button>
+                  <button type="button" class="chip-btn" data-prompt="Change the color theme to pastel">Change the color theme to pastel</button>
                 </div>
               </div>
 
@@ -3085,14 +3083,14 @@
     const promptForm = document.getElementById('prompt-form');
     const chatLog = document.getElementById('chat-log');
 
-    // Clickable Suggestion Chips: Populates text box and immediately submits prompt
+    // Clickable Suggestion Chips: Populates text box so user can review and click Send to execute
     document.querySelectorAll('.chip-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
         const promptText = btn.dataset.prompt;
         if (!promptText) return;
         promptInput.value = promptText;
-        submitPrompt(promptText);
-        promptInput.value = '';
+        promptInput.focus();
       });
     });
 
